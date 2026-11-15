@@ -1,0 +1,103 @@
+# TRAILSTRIP
+
+An ESP32-S3 off-road instrument prototype for the Waveshare ESP32-S3-Touch-LCD-3.49 and an iPhone companion app. All data stays on the devices. This is the first bench implementation, not yet vehicle validated.
+
+## Current implementation
+
+- Landscape 640 × 172 LVGL UI: Trail, Camp, Explore; swipe, tap the page title to cycle, or tap a footer dot.
+- Automatic normal/upside-down landscape rotation (0°/180° only), with matching touch and sensor-axis mapping. Requires about 600 ms of steady, near-upright orientation; portrait, flat and shock poses retain the last landscape direction. The last orientation is saved in NVS and restored before the first frame at boot; auto-rotation remains active afterward.
+- QMI8658 accelerometer tilt with smoothing, missing-sensor indication, and persistent zero calibration in NVS.
+- Camp bubble level and SET ZERO. In this first version the zero is shared with Trail.
+- Explore elevation, speed, pressure, and camp/trip footer, supplied over BLE.
+- Missing, invalid, disconnected, or expired telemetry shows dashes; no simulated driving values.
+- Native SwiftUI iPhone app: user-started location/barometer session, BLE discovery/reconnection, local camp waypoint and rough trip accumulation.
+
+Trail uses code-native amber Jeep illustrations, angle scales, and large numbers. Tap the Roll Jeep to toggle FRONT / REAR; the rear view has a spare tire and reverses the visual roll direction. The roll number and gauge continue to show the same vehicle measurement. The view choice survives page changes, reboot and power loss. Orientation and view preferences are written only when changed. The Pitch Jeep remains a side view. The 640 × 172 LVGL preview is in `docs/previews/trail-jeep.png` (illustrative 8°/12° input). Illustration rotation is visually capped at ±45° and scale pointers at ±30° to fit the screen; numerical readings retain their full range. Invalid readings dim the vehicles and hide scale pointers. Pitch and roll now use an upright, driver-facing landscape mount: pitch uses negative sensor Z, with negative sensor Y as the upright reference; roll keeps its established direction. Level rest is expected near (0, -1, 0) g. Positive roll denotes vehicle right side down; positive pitch denotes nose up. Verify direction signs on the physical mount. Accelerometer-only filtering is still used; gyro fusion and vehicle-motion testing remain. SET ZERO only subtracts small angular offsets; it does not solve arbitrary mounting rotation. Calibration is saved under `zero_mount_v2`. Previous `zero_upright` offsets are read with their pitch sign converted, preserving the same physical zero; the earlier flat-board `zero` offsets are ignored. After updating, use Camp → SET ZERO while parked level to compensate for mounting cant.
+
+## Firmware tools
+
+VS Code + PlatformIO Core 6.2.0. Pinned PlatformIO Espressif32 6.13.0 provides ESP-IDF 5.5.3. Managed dependencies: LVGL 8.4.0, AXS15231B 1.0.1~1, and TCA9554 2.0.3. `dependencies.lock` records transitive versions. Source layout also uses standard ESP-IDF CMake.
+
+```sh
+pio run -e trailstrip_v2
+pio run -e trailstrip_v1
+pio device list
+```
+
+On this Mac, PlatformIO is installed at `~/.platformio/penv/bin/pio` but is not currently on PATH. The pre-existing esptool installation required `intelhex==2.3.0` in its Python environment; this dependency was installed during setup.
+
+## Identify the board before uploading
+
+- **V2 / PCB Rev1.1:** `trailstrip_v2`, backlight GPIO42 and expander-driven display reset.
+- **V1:** `trailstrip_v1`, backlight GPIO8 and display reset GPIO21.
+
+The environment defaults to V2 for building only; do not assume a connected board is V2. The user confirmed this device is V2; use `trailstrip_v2` when uploading to it. Confirm the marking separately for any other board. Both configurations use 16 MB flash and octal PSRAM according to the vendor hardware configuration.
+
+Once a real serial port appears, inspect chip and flash size, preserve existing firmware if needed, then upload the matching environment:
+
+```sh
+pio run -e trailstrip_v2 -t upload --upload-port /dev/cu.usbmodemYOUR_PORT
+pio device monitor --port /dev/cu.usbmodemYOUR_PORT --baud 115200
+```
+
+Uploading replaces the application. The confirmed V2 board was successfully flashed on 2026-11-13 after saving a full original-flash backup in `backups/`. Boot logs confirm display/IMU initialization and BLE advertising. No full-chip erase or fuse programming was performed. Visual/touch checks and iPhone telemetry remain to be verified. Native USB Serial/JTAG logging is enabled. Expected startup messages include `TRAILSTRIP 0.1.0`, `QMI8658 ready`, and `UI ready 640x172`.
+
+If no USB device appears: use a known data cable connected directly to the Mac, then hold BOOT, press/release RESET, and release BOOT. Check `pio device list` again.
+
+## iPhone app
+
+Open `ios/Trailstrip.xcodeproj` in Xcode. Select your signing team and a unique bundle identifier, select your physical iPhone, and run. This project has no team or credentials embedded. Accept Bluetooth, Location, and Motion permissions, then tap **Start session**. It connects to the first advertising Trailstrip device.
+
+The unsigned iPhoneOS build can be checked without installing:
+
+```sh
+xcodebuild -project ios/Trailstrip.xcodeproj -scheme Trailstrip \
+  -sdk iphoneos -configuration Debug -derivedDataPath /tmp/trailstrip-ios-build \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+Background location and Bluetooth modes are declared, but locked-screen location, barometer delivery, reconnect behavior, and battery use have not been tested. Barometer data expires independently, including when iOS stops delivering it. No automatic restart after force quit is implemented. The prototype accepts one BLE connection without pairing/bonding; access control remains a later milestone.
+
+## Validation
+
+```sh
+clang++ -std=c++17 -DTRAILSTRIP_HOST_TEST -Imain \
+  tests/telemetry_test.cpp main/telemetry.cpp -o /tmp/trailstrip-telemetry-test
+/tmp/trailstrip-telemetry-test
+```
+
+These tests cover packet validation, units/ranges, invalid values, and expiry. See `docs/VALIDATION.md` for the actual build and hardware status, and `docs/BLE_PROTOCOL.md` for interoperability.
+
+## Rendering the actual firmware UI on a Mac
+
+The headless preview compiles the same `main/ui.cpp` and `main/vehicle.cpp` against LVGL, with desktop-only sensor stubs. This avoids treating a concept rendering as proof of the implemented layout.
+
+```sh
+cmake -S scripts/ui_preview -B /tmp/trailstrip-ui-preview
+cmake --build /tmp/trailstrip-ui-preview -j 8
+/tmp/trailstrip-ui-preview/preview /tmp/trail.ppm 8 12
+sips -s format png /tmp/trail.ppm --out /tmp/trail.png
+```
+
+Preview arguments: output PPM path, roll, pitch, page (0–2), valid (0/1), optional Roll tap count (simulated LVGL pointer input), inverted landscape (0/1), and saved rear view (0/1). Requires the managed LVGL dependency downloaded by a PlatformIO build.
+
+Upright orientation regression check:
+
+```sh
+clang++ -std=c++17 -Imain tests/attitude_test.cpp -o /tmp/trailstrip-attitude-test
+/tmp/trailstrip-attitude-test
+```
+
+Landscape auto-rotation regression check (debounce, ambiguous poses, sample gaps, complete framebuffer/touch mapping, and equivalent sensor mounts):
+
+```sh
+clang++ -std=c++17 -Imain tests/landscape_test.cpp -o /tmp/trailstrip-landscape-test
+/tmp/trailstrip-landscape-test
+```
+
+Display preference persistence regression check (real preference code with a fake NVS backend):
+
+```sh
+clang++ -std=c++17 -Itests/stubs -Imain tests/display_preferences_test.cpp main/display_preferences.cpp -o /tmp/trailstrip-preferences-test
+/tmp/trailstrip-preferences-test
+```

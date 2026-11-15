@@ -1,0 +1,152 @@
+#include "trailstrip.h"
+#include "attitude.h"
+#include "telemetry.h"
+#include "lvgl.h"
+#include "vehicle.h"
+#include "display_preferences.h"
+#include "esp_timer.h"
+#include "esp_log.h"
+#include <cmath>
+#include <cstdio>
+#include <initializer_list>
+static lv_obj_t *content,*status,*values[3],*bubble,*vehicles[2],*pointers[2],*title,*dots[3];
+static int page=0;
+static bool roll_rear=false;
+static int64_t feedback_until=0;
+static lv_obj_t *roll_view_label=nullptr;
+static void toggle_roll_view(lv_event_t*){
+    auto input=lv_indev_get_act();
+    if(input && lv_indev_get_gesture_dir(input)!=LV_DIR_NONE)return;
+    roll_rear=!roll_rear;
+    if(!display_preferences_set_roll_rear(roll_rear)){
+        lv_label_set_text(status,"VIEW CHANGED / SAVE FAILED");
+        feedback_until=esp_timer_get_time()+2000000;
+    }
+    vehicle_set_rear(vehicles[0],roll_rear);
+    lv_label_set_text(roll_view_label,roll_rear?"REAR / TAP":"FRONT / TAP");
+}
+static const char *names[]={"TRAIL","CAMP","EXPLORE"};
+static lv_color_t amber(){return lv_color_hex(0xffb547);}
+static lv_obj_t *label(lv_obj_t *parent,const char *text,int x,int y,const lv_font_t *font,lv_color_t color){
+    auto o=lv_label_create(parent);lv_label_set_text(o,text);lv_obj_set_pos(o,x,y);
+    lv_obj_set_style_text_font(o,font,0);lv_obj_set_style_text_color(o,color,0);return o;
+}
+static lv_obj_t *rule(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color){
+    auto o=lv_obj_create(parent);lv_obj_remove_style_all(o);lv_obj_set_pos(o,x,y);lv_obj_set_size(o,w,h);
+    lv_obj_set_style_bg_color(o,lv_color_hex(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
+    lv_obj_clear_flag(o,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);return o;
+}
+static lv_obj_t *scale(lv_obj_t *parent,int x){
+    rule(parent,x+36,9,1,96,0x8a8d8b);
+    for(int i=0;i<5;i++){
+        char text[16];snprintf(text,sizeof(text),"%d°",30-15*i);
+        auto t=label(parent,text,x,3+24*i,&lv_font_montserrat_12,lv_color_hex(0xb4b5af));
+        lv_obj_set_width(t,31);lv_obj_set_style_text_align(t,LV_TEXT_ALIGN_RIGHT,0);
+        rule(parent,x+32,9+24*i,10,1,0x8a8d8b);
+    }
+    return label(parent,"<",x+42,48,&lv_font_montserrat_16,amber());
+}
+static void render_page();
+static void select(lv_event_t *e){page=(int)(intptr_t)lv_event_get_user_data(e);render_page();}
+static void zero(lv_event_t*){lv_label_set_text(status,attitude_zero()?"ZERO SAVED":"ZERO FAILED / HOLD STILL");feedback_until=esp_timer_get_time()+2000000;}
+static void gesture(lv_event_t*){
+    auto d=lv_indev_get_gesture_dir(lv_indev_get_act());
+    if(d==LV_DIR_LEFT)page=(page+1)%3;
+    else if(d==LV_DIR_RIGHT)page=(page+2)%3;
+    else return;
+    render_page();
+}
+static void render_page(){
+    lv_obj_clean(content);roll_view_label=nullptr;bubble=nullptr;vehicles[0]=vehicles[1]=nullptr;
+    pointers[0]=pointers[1]=nullptr;
+    lv_label_set_text(title,names[page]);
+    for(int i=0;i<3;i++)lv_obj_set_style_bg_color(dots[i],i==page?amber():lv_color_hex(0x606360),0);
+    for(auto &v:values)v=nullptr;
+    if(page==0){
+        rule(content,319,4,1,108,0x555a58);
+        pointers[0]=scale(content,0);pointers[1]=scale(content,322);
+        vehicles[0]=vehicle_create(content,false,54,0,153,116);
+        vehicle_set_rear(vehicles[0],roll_rear);
+        lv_obj_add_flag(vehicles[0],LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(vehicles[0],toggle_roll_view,LV_EVENT_SHORT_CLICKED,nullptr);
+        vehicles[1]=vehicle_create(content,true,375,0,159,116);
+        label(content,"ROLL",219,17,&lv_font_montserrat_16,lv_color_hex(0xb4b5af));
+        label(content,"PITCH",540,17,&lv_font_montserrat_16,lv_color_hex(0xb4b5af));
+        values[0]=label(content,"--",214,43,&lv_font_montserrat_48,lv_color_white());
+        values[1]=label(content,"--",535,43,&lv_font_montserrat_48,lv_color_white());
+        roll_view_label=label(content,roll_rear?"REAR / TAP":"FRONT / TAP",215,100,&lv_font_montserrat_12,amber());
+    }else if(page==1){
+        auto ring=lv_obj_create(content);lv_obj_set_size(ring,100,100);lv_obj_set_pos(ring,22,2);
+        lv_obj_set_style_radius(ring,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_opa(ring,LV_OPA_TRANSP,0);
+        lv_obj_set_style_border_color(ring,amber(),0);lv_obj_clear_flag(ring,LV_OBJ_FLAG_SCROLLABLE);
+        bubble=lv_obj_create(content);lv_obj_set_size(bubble,14,14);lv_obj_set_style_radius(bubble,LV_RADIUS_CIRCLE,0);
+        lv_obj_set_style_bg_color(bubble,amber(),0);lv_obj_set_style_border_width(bubble,0,0);
+        label(content,"ROLL",150,5,&lv_font_montserrat_16,amber());label(content,"PITCH",330,5,&lv_font_montserrat_16,amber());
+        values[0]=label(content,"--",150,32,&lv_font_montserrat_32,lv_color_white());
+        values[1]=label(content,"--",330,32,&lv_font_montserrat_32,lv_color_white());
+        auto btn=lv_btn_create(content);lv_obj_set_pos(btn,510,26);lv_obj_set_size(btn,110,48);lv_obj_set_style_bg_color(btn,amber(),0);
+        auto text=label(btn,"SET ZERO",0,0,&lv_font_montserrat_16,lv_color_black());lv_obj_center(text);lv_obj_add_event_cb(btn,zero,LV_EVENT_CLICKED,nullptr);
+    }else{
+        const char* titles[]={"ELEVATION / m","SPEED / km/h","PRESSURE / hPa"};
+        for(int i=0;i<3;i++){label(content,titles[i],20+i*210,5,&lv_font_montserrat_16,amber());values[i]=label(content,"--",20+i*210,36,&lv_font_montserrat_32,lv_color_white());}
+    }
+}
+static void tick(lv_timer_t*){
+    auto a=attitude_read();
+    board_set_landscape_inverted(a.inverted);
+    if(page<2){
+        if(a.valid){
+            float angles[2]={a.roll,a.pitch};
+            for(int i=0;i<2;i++){
+                char text[32];snprintf(text,sizeof(text),page==0?"%.0f°":"%+.1f°",angles[i]);
+                if(page==0){
+                    lv_point_t size;lv_txt_get_size(&size,text,&lv_font_montserrat_48,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+                    lv_obj_set_style_text_font(values[i],size.x>101?&lv_font_montserrat_32:&lv_font_montserrat_48,0);
+                }
+                lv_label_set_text(values[i],text);
+            }
+        }
+        else{lv_label_set_text(values[0],"--");lv_label_set_text(values[1],"--");}
+        if(esp_timer_get_time()>feedback_until)lv_label_set_text(status,!a.valid?"IMU UNAVAILABLE / MOTION":a.calibrated?(page==0?"VEHICLE ATTITUDE":"LEVEL ASSIST"):(page==0?"VEHICLE ATTITUDE  /  ZERO IN CAMP":"LEVEL ASSIST  /  SET ZERO ON LEVEL SURFACE"));
+        // Screen Y increases downward: positive pitch moves the level bubble upward.
+        if(bubble){lv_obj_set_pos(bubble,65+(int)fmaxf(-36,fminf(36,a.roll*3)),45-(int)fmaxf(-36,fminf(36,a.pitch*3)));lv_obj_set_style_opa(bubble,a.valid?LV_OPA_COVER:LV_OPA_30,0);}
+        if(vehicles[0]){
+            for(int i=0;i<2;i++){
+                float angle=i?a.pitch:a.roll;
+                vehicle_set_attitude(vehicles[i],angle,a.valid);
+                if(a.valid){lv_obj_clear_flag(pointers[i],LV_OBJ_FLAG_HIDDEN);lv_obj_set_y(pointers[i],49-(int)(fmaxf(-30,fminf(30,angle))*1.6f));}
+                else lv_obj_add_flag(pointers[i],LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+    }else{
+        auto t=telemetry_snapshot();uint64_t now=esp_timer_get_time()/1000;
+        Reading fields[]={t.altitude,t.speed,t.pressure};
+        for(int i=0;i<3;i++){
+            if(fresh(fields[i],now)){char text[32];snprintf(text,sizeof(text),i==0?"%.0f":"%.1f",fields[i].value*(i==1?3.6:1));lv_label_set_text(values[i],text);}
+            else lv_label_set_text(values[i],"--");
+        }
+        lv_label_set_text(status,!phone_connected()?"WAITING FOR IPHONE / BLUETOOTH":fresh(t.altitude,now)?"PHONE LOCATION / LIVE":"PHONE CONNECTED / LOCATION STALE");
+        if(fresh(t.camp_distance,now) && fresh(t.camp_bearing,now) && fresh(t.trip_distance,now)){char text[100];snprintf(text,sizeof(text),"CAMP %.2f km / %.0f° TRUE   |   TRIP %.2f km   |   PHONE",t.camp_distance.value/1000,t.camp_bearing.value,t.trip_distance.value/1000);lv_label_set_text(status,text);}
+    }
+}
+void ui_start(){
+    roll_rear=display_preferences_get().roll_rear;
+    auto root=lv_scr_act();lv_obj_set_style_bg_color(root,lv_color_hex(0x080b0d),0);lv_obj_clear_flag(root,LV_OBJ_FLAG_SCROLLABLE);
+    auto title_button=lv_btn_create(root);lv_obj_remove_style_all(title_button);
+    lv_obj_set_pos(title_button,8,0);lv_obj_set_size(title_button,130,29);
+    lv_obj_add_event_cb(title_button,[](lv_event_t*){page=(page+1)%3;render_page();},LV_EVENT_CLICKED,nullptr);
+    title=label(title_button,"TRAIL",0,4,&lv_font_montserrat_20,amber());
+    rule(root,140,16,486,1,0x9a9e98);
+    content=lv_obj_create(root);lv_obj_remove_style_all(content);lv_obj_set_pos(content,0,30);lv_obj_set_size(content,640,116);lv_obj_clear_flag(content,LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(root,gesture,LV_EVENT_GESTURE,nullptr);
+    rule(root,10,149,620,1,0x9a9e98);
+    status=label(root,"STARTING",10,155,&lv_font_montserrat_12,lv_color_hex(0xb4b5af));
+    lv_obj_set_width(status,510);lv_label_set_long_mode(status,LV_LABEL_LONG_CLIP);
+    for(int i=0;i<3;i++){
+        auto hit=lv_btn_create(root);lv_obj_remove_style_all(hit);lv_obj_set_pos(hit,532+i*35,146);lv_obj_set_size(hit,35,26);
+        dots[i]=rule(hit,12,10,8,8,0x606360);lv_obj_set_style_radius(dots[i],LV_RADIUS_CIRCLE,0);
+        lv_obj_add_event_cb(hit,select,LV_EVENT_CLICKED,(void*)(intptr_t)i);
+    }
+    render_page();lv_timer_create(tick,50,nullptr);
+}
+void trailstrip_start(){attitude_start();ui_start();ESP_LOGI("trailstrip","UI ready 640x172; animated Jeep views; BLE telemetry available");}

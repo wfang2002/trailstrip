@@ -1,0 +1,65 @@
+# PlatformIO / ESP-IDF (ESP32-S3 firmware)
+.pio/
+.pioenvs/
+.piolibdeps/
+managed_components/
+build/
+sdkconfig
+sdkconfig.old
+sdkconfig.trailstrip_*
+compile_commands.json
+.cache/
+
+# CMake UI preview and in-tree host builds
+CMakeCache.txt
+CMakeFiles/
+cmake-build-*/
+*.o
+*.obj
+*.d
+*.elf
+*.map
+*.bin
+*.ppm
+
+# Flash images and serial captures
+backups/
+logs/
+
+# Xcode / iOS companion
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.mobileprovision
+*.p12
+*.cer
+*.certSigningRequest
+
+# Python helpers
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.Python
+
+# VS Code / PlatformIO IDE (generated; keep extensions.json)
+.vscode/.browse.c_cpp.db*
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch/
+.vscode/dryrun.log
+
+# Editors and OS
+.idea/
+*.swp
+*~
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
