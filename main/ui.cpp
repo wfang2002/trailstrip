@@ -16,6 +16,7 @@ static lv_obj_t *clock_segments[6][7];
 static bool roll_rear=false;
 static int64_t feedback_until=0;
 static lv_obj_t *roll_view_label=nullptr;
+static lv_obj_t *zero_dialog=nullptr;
 static void toggle_roll_view(lv_event_t*){
     auto input=lv_indev_get_act();
     if(input && lv_indev_get_gesture_dir(input)!=LV_DIR_NONE)return;
@@ -54,9 +55,39 @@ static bool clock_ready(){
 }
 static int page_count(){return clock_ready()?4:3;}
 static void render_page();
-static void select(lv_event_t *e){page=(int)(intptr_t)lv_event_get_user_data(e);if(page>=page_count())page=2;render_page();}
-static void zero(lv_event_t*){lv_label_set_text(status,attitude_zero()?"ZERO SAVED":"ZERO FAILED / HOLD STILL");feedback_until=esp_timer_get_time()+2000000;}
+static void select(lv_event_t *e){if(zero_dialog)return;page=(int)(intptr_t)lv_event_get_user_data(e);if(page>=page_count())page=2;render_page();}
+static void close_zero_dialog(){
+    if(zero_dialog){auto dialog=zero_dialog;zero_dialog=nullptr;lv_obj_del(dialog);}
+}
+static void zero_choice(lv_event_t *event){
+    const bool confirm=(intptr_t)lv_event_get_user_data(event)!=0;
+    close_zero_dialog();
+    if(confirm){
+        lv_label_set_text(status,attitude_zero()?"ZERO SAVED":"ZERO FAILED / HOLD STILL");
+        feedback_until=esp_timer_get_time()+2000000;
+    }
+}
+static void zero(lv_event_t*){
+    if(zero_dialog)return;
+    zero_dialog=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(zero_dialog);
+    lv_obj_set_size(zero_dialog,640,172);lv_obj_set_pos(zero_dialog,0,0);
+    lv_obj_set_style_bg_color(zero_dialog,lv_color_hex(0x080b0d),0);
+    lv_obj_set_style_bg_opa(zero_dialog,LV_OPA_COVER,0);
+    lv_obj_clear_flag(zero_dialog,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_flag(zero_dialog,LV_OBJ_FLAG_CLICKABLE);
+    auto heading=label(zero_dialog,"SET ZERO?",0,15,&lv_font_montserrat_20,amber());
+    lv_obj_align(heading,LV_ALIGN_TOP_MID,0,15);
+    auto message=label(zero_dialog,"Park level and hold still. Replace saved calibration?",0,51,&lv_font_montserrat_16,lv_color_white());
+    lv_obj_align(message,LV_ALIGN_TOP_MID,0,51);
+    for(int i=0;i<2;i++){
+        auto button=lv_btn_create(zero_dialog);lv_obj_set_pos(button,130+i*210,99);lv_obj_set_size(button,170,52);
+        lv_obj_set_style_bg_color(button,i?amber():lv_color_hex(0x303633),0);
+        auto text=label(button,i?"CONFIRM":"CANCEL",0,0,&lv_font_montserrat_16,i?lv_color_black():lv_color_white());lv_obj_center(text);
+        lv_obj_add_event_cb(button,zero_choice,LV_EVENT_CLICKED,(void*)(intptr_t)i);
+    }
+}
 static void gesture(lv_event_t*){
+    if(zero_dialog)return;
     auto d=lv_indev_get_gesture_dir(lv_indev_get_act());
     if(d==LV_DIR_LEFT)page=(page+1)%page_count();
     else if(d==LV_DIR_RIGHT)page=(page+page_count()-1)%page_count();
@@ -64,6 +95,7 @@ static void gesture(lv_event_t*){
     render_page();
 }
 static void render_page(){
+    close_zero_dialog();
     lv_obj_clean(content);roll_view_label=nullptr;bubble=nullptr;vehicles[0]=vehicles[1]=nullptr;
     pointers[0]=pointers[1]=nullptr;
     lv_label_set_text(title,names[page]);
@@ -95,7 +127,7 @@ static void render_page(){
         auto text=label(btn,"SET ZERO",0,0,&lv_font_montserrat_16,lv_color_black());lv_obj_center(text);lv_obj_add_event_cb(btn,zero,LV_EVENT_CLICKED,nullptr);
     }else if(page==2){
         const char* titles[]={"ELEVATION / m","SPEED / km/h","PRESSURE / hPa"};
-        for(int i=0;i<3;i++){label(content,titles[i],20+i*210,5,&lv_font_montserrat_16,amber());values[i]=label(content,"--",20+i*210,36,&lv_font_montserrat_32,lv_color_white());}
+        for(int i=0;i<3;i++){label(content,titles[i],20+i*210,5,&lv_font_montserrat_16,amber());values[i]=label(content,"--",20+i*210,32,&lv_font_montserrat_48,lv_color_white());lv_obj_set_width(values[i],190);lv_label_set_long_mode(values[i],LV_LABEL_LONG_CLIP);}
     }else{
         // Vector digits stay crisp at full size without a large transformed text layer.
         const int rects[7][4]={{8,0,44,7},{52,8,7,39},{52,53,7,39},{8,93,44,7},{1,53,7,39},{1,8,7,39},{8,46,44,7}};
@@ -145,8 +177,11 @@ static void tick(lv_timer_t*){
         auto t=telemetry_snapshot();uint64_t now=esp_timer_get_time()/1000;
         Reading fields[]={t.altitude,t.speed,t.pressure};
         for(int i=0;i<3;i++){
-            if(fresh(fields[i],now)){char text[32];snprintf(text,sizeof(text),i==0?"%.0f":"%.1f",fields[i].value*(i==1?3.6:1));lv_label_set_text(values[i],text);}
-            else lv_label_set_text(values[i],"--");
+            char text[32]="--";
+            if(fresh(fields[i],now))snprintf(text,sizeof(text),i==0?"%.0f":"%.1f",fields[i].value*(i==1?3.6:1));
+            lv_point_t size;lv_txt_get_size(&size,text,&lv_font_montserrat_48,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+            lv_obj_set_style_text_font(values[i],size.x>190?&lv_font_montserrat_32:&lv_font_montserrat_48,0);
+            lv_label_set_text(values[i],text);
         }
         lv_label_set_text(status,!phone_connected()?"WAITING FOR IPHONE / BLUETOOTH":fresh(t.altitude,now)?"PHONE LOCATION / LIVE":"PHONE CONNECTED / LOCATION STALE");
         if(fresh(t.camp_distance,now) && fresh(t.camp_bearing,now) && fresh(t.trip_distance,now)){char text[100];snprintf(text,sizeof(text),"CAMP %.2f km / %.0f° TRUE   |   TRIP %.2f km   |   PHONE",t.camp_distance.value/1000,t.camp_bearing.value,t.trip_distance.value/1000);lv_label_set_text(status,text);}
@@ -173,7 +208,7 @@ void ui_start(){
     auto root=lv_scr_act();lv_obj_set_style_bg_color(root,lv_color_hex(0x080b0d),0);lv_obj_clear_flag(root,LV_OBJ_FLAG_SCROLLABLE);
     auto title_button=lv_btn_create(root);lv_obj_remove_style_all(title_button);
     lv_obj_set_pos(title_button,8,0);lv_obj_set_size(title_button,130,29);
-    lv_obj_add_event_cb(title_button,[](lv_event_t*){page=(page+1)%page_count();render_page();},LV_EVENT_CLICKED,nullptr);
+    lv_obj_add_event_cb(title_button,[](lv_event_t*){if(zero_dialog)return;page=(page+1)%page_count();render_page();},LV_EVENT_CLICKED,nullptr);
     title=label(title_button,"TRAIL",0,4,&lv_font_montserrat_20,amber());
     rule(root,140,16,486,1,0x9a9e98);
     content=lv_obj_create(root);lv_obj_remove_style_all(content);lv_obj_set_pos(content,0,30);lv_obj_set_size(content,640,116);lv_obj_clear_flag(content,LV_OBJ_FLAG_SCROLLABLE);

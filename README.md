@@ -118,3 +118,7 @@ The preview also accepts `clock_sync` and `disconnect_after_render` (0/1) after 
 ```sh
 /tmp/trailstrip-ui-preview/preview /tmp/clock.ppm 0 0 3 1 0 0 0 1
 ```
+
+Explore readings use 48 px digits (with a 32 px fallback for unusually long values). To render sample readings in the desktop preview, set `TRAILSTRIP_PREVIEW_EXPLORE=1284,8.5,1013.2` (elevation m, speed km/h, pressure hPa) and select page 2.
+
+Camp → **SET ZERO** opens a confirmation prompt. Park level and hold still, then tap **CONFIRM** to replace the saved calibration or **CANCEL** to keep it. Preview the prompt with `TRAILSTRIP_PREVIEW_ZERO=prompt` on page 1; `cancel` and `confirm` exercise the touch flow and calibration-call assertions.

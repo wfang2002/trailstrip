@@ -15,8 +15,9 @@ static bool clock_demo=false;
 static bool sensor_inverted=false,screen_inverted=false;
 static uint32_t pixels[640*172];
 static bool pressed=false;
+static int touch_x=130,touch_y=85,zero_calls=0;
 static void input_read(lv_indev_drv_t*,lv_indev_data_t *data){
-    const auto physical=trailstrip::landscape_point(130,85,sensor_inverted);
+    const auto physical=trailstrip::landscape_point(touch_x,touch_y,sensor_inverted);
     const auto logical=trailstrip::landscape_point(physical.x,physical.y,screen_inverted);
     data->point={lv_coord_t(logical.x),lv_coord_t(logical.y)};data->state=pressed?LV_INDEV_STATE_PR:LV_INDEV_STATE_REL;
 }
@@ -31,9 +32,19 @@ Attitude attitude_read(){return {roll,pitch,valid,true,sensor_inverted};}
 void board_set_landscape_inverted(bool value){
     if(value!=screen_inverted){screen_inverted=value;lv_obj_invalidate(lv_scr_act());}
 }
-bool attitude_zero(){return true;}
-Telemetry telemetry_snapshot(){Telemetry t;if(clock_demo)t.clock={1794697200000ULL,0,-28800,true};return t;}
-bool phone_connected(){return clock_demo;}
+bool attitude_zero(){++zero_calls;return valid;}
+Telemetry telemetry_snapshot(){
+    Telemetry t;if(clock_demo)t.clock={1794697200000ULL,0,-28800,true};
+    // Optional illustrative elevation (m), speed (km/h), pressure (hPa).
+    if(const char *sample=std::getenv("TRAILSTRIP_PREVIEW_EXPLORE")){
+        float elevation,speed,pressure;
+        if(std::sscanf(sample,"%f,%f,%f",&elevation,&speed,&pressure)==3){
+            t.altitude={elevation,1000,true};t.speed={speed/3.6f,1000,true};t.pressure={pressure,1000,true};
+        }
+    }
+    return t;
+}
+bool phone_connected(){return clock_demo || std::getenv("TRAILSTRIP_PREVIEW_EXPLORE");}
 
 static void flush(lv_disp_drv_t *d,const lv_area_t *area,lv_color_t *colors){
     for(int y=area->y1;y<=area->y2;y++)for(int x=area->x1;x<=area->x2;x++){
@@ -65,6 +76,19 @@ int main(int argc,char **argv){
     if(argc>10 && std::atoi(argv[10])){
         clock_demo=false;step();step();
         assert(std::strcmp(lv_label_get_text(lv_obj_get_child(lv_obj_get_child(lv_scr_act(),0),0)),"EXPLORE")==0);
+    }
+    if(const char *action=std::getenv("TRAILSTRIP_PREVIEW_ZERO")){
+        auto tap=[](int x,int y){touch_x=x;touch_y=y;pressed=true;step();pressed=false;step();};
+        tap(565,80);assert(zero_calls==0);
+        // Modal blocks the title behind it.
+        tap(40,15);assert(zero_calls==0);
+        assert(std::strcmp(lv_label_get_text(lv_obj_get_child(lv_obj_get_child(lv_scr_act(),-1),0)),"SET ZERO?")==0);
+        if(std::strcmp(action,"prompt")!=0){
+            bool confirm=std::strcmp(action,"confirm")==0;
+            tap(confirm?425:215,125);assert(zero_calls==(confirm?1:0));
+            assert(std::strcmp(lv_label_get_text(lv_obj_get_child(lv_obj_get_child(lv_scr_act(),0),0)),"CAMP")==0);
+            if(confirm)assert(std::strcmp(lv_label_get_text(lv_obj_get_child(lv_scr_act(),4)),valid?"ZERO SAVED":"ZERO FAILED / HOLD STILL")==0);
+        }
     }
     lv_refr_now(nullptr);
     FILE *file=fopen(argv[1],"wb");if(!file)return 2;

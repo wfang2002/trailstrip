@@ -1,3 +1,17 @@
+# Set Zero confirmation — 2026-11-14
+
+- Camp SET ZERO now opens a modal prompt with CANCEL and CONFIRM. Only CONFIRM calls calibration; success/failure feedback remains on Camp. Modal blocks underlying navigation and gestures.
+- Actual LVGL pointer simulations passed: opening/tapping background does not calibrate, cancel makes zero calibration calls, confirm makes exactly one call, invalid readings show failure, and inverted-landscape touch mapping works. Preview visually checked at 640 × 172 (`docs/previews/set-zero-confirm.png`).
+- V2 build/upload passed with verified flash hashes. Eight-second boot capture showed IMU/UI ready without panic. Physical calibration was not changed during verification.
+- Logs: `logs/upload-zero-confirm-2026-11-14.log`, `logs/boot-zero-confirm-2026-11-14.log`.
+
+# Larger Explore readings — 2026-11-14
+
+- Increased elevation, speed and pressure digits from 32 px to 48 px. Kept 190 px column bounds and a measured 32 px fallback for unusually long values; missing readings also use the larger font.
+- Visually checked actual LVGL previews with 1284 / 8.5 / 1013.2 and -12345 / 120.5 / 1200.0; all fit without column overlap. Preview artifact: `docs/previews/explore-large.png`.
+- V2 build/upload succeeded with verified flash hashes. Eight-second restart capture showed IMU/UI ready without panic.
+- Logs: `logs/upload-explore-large-2026-11-14.log`, `logs/boot-explore-large-2026-11-14.log`.
+
 # Fourth screen: phone-synced clock — 2026-11-14
 
 - Added large vector HH:MM:SS digits and local date on CLOCK. Fourth dot/title/swipe navigation is available only while the phone is connected with a sync received within 60 seconds. Disconnect/expiry returns an active Clock screen to Explore. Orientation support applies to the entire screen.
