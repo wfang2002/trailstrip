@@ -101,3 +101,20 @@ Display preference persistence regression check (real preference code with a fak
 clang++ -std=c++17 -Itests/stubs -Imain tests/display_preferences_test.cpp main/display_preferences.cpp -o /tmp/trailstrip-preferences-test
 /tmp/trailstrip-preferences-test
 ```
+
+### Phone-synced clock
+
+The fourth **CLOCK** screen appears after the iPhone app connects and sends time. Start a session in the updated app, then swipe left from Explore or tap the fourth dot. Large 24-hour digits show hours, minutes and seconds; the footer shows the phone-local date. GPS permission/fix is not needed for time sync. The screen disappears on disconnect or after 60 seconds without a time update, returning to Explore.
+
+Clock parser and freshness checks:
+
+```sh
+clang++ -std=c++17 -DTRAILSTRIP_HOST_TEST -Imain tests/clock_test.cpp main/telemetry.cpp -o /tmp/trailstrip-clock-test
+/tmp/trailstrip-clock-test
+```
+
+The preview also accepts `clock_sync` and `disconnect_after_render` (0/1) after `saved_rear`. Example clock rendering:
+
+```sh
+/tmp/trailstrip-ui-preview/preview /tmp/clock.ppm 0 0 3 1 0 0 0 1
+```

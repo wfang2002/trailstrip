@@ -118,6 +118,16 @@ final class TrailSession: NSObject, ObservableObject, CLLocationManagerDelegate,
         }
         return data
     }
+    private func clockPacket() -> Data {
+        let now = Date()
+        var data = Data([1, 4, 1, 0])
+        var milliseconds = UInt64(now.timeIntervalSince1970 * 1000).littleEndian
+        var offset = Int32(TimeZone.current.secondsFromGMT(for: now)).littleEndian
+        withUnsafeBytes(of: &milliseconds) { data.append(contentsOf: $0) }
+        withUnsafeBytes(of: &offset) { data.append(contentsOf: $0) }
+        data.append(contentsOf: [0, 0, 0, 0])
+        return data
+    }
     private func publishReadings() {
         guard running else { return }
         var gps: [Float?] = [nil,nil,nil,nil]
@@ -143,7 +153,7 @@ final class TrailSession: NSObject, ObservableObject, CLLocationManagerDelegate,
         elevationText = gps[0].map { String(format: "%.0f m", $0) } ?? "--"
         speedText = gps[1].map { String(format: "%.1f km/h", $0*3.6) } ?? "--"
         pressureText = baro[0].map { String(format: "%.1f hPa", $0) } ?? "--"
-        pending[1] = packet(1,gps); pending[2] = packet(2,baro); pending[3] = packet(3,navigation)
+        pending[1] = packet(1,gps); pending[2] = packet(2,baro); pending[3] = packet(3,navigation); pending[4] = Data()
         sendNext()
     }
     private func scan() {
@@ -185,7 +195,7 @@ final class TrailSession: NSObject, ObservableObject, CLLocationManagerDelegate,
     private func sendNext() {
         guard running, !writing, let p = peripheral, p.state == .connected, let rx = receiver,
               let kind = pending.keys.sorted().first, let bytes = pending.removeValue(forKey: kind) else { return }
-        writing = true; p.writeValue(bytes, for: rx, type: .withResponse)
+        writing = true; p.writeValue(kind == 4 ? clockPacket() : bytes, for: rx, type: .withResponse)
     }
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         writing = false

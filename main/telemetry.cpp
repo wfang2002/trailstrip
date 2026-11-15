@@ -11,7 +11,22 @@ static bool connected=false;
 bool fresh(const Reading &r, uint64_t now) {
     return r.valid && now >= r.received_ms && now-r.received_ms <= 5000;
 }
+bool clock_local_seconds(const PhoneClock &c, bool connected, uint64_t now, int64_t &seconds) {
+    if(!connected || !c.valid || now<c.received_ms || now-c.received_ms>60000)return false;
+    seconds=int64_t((c.unix_ms+now-c.received_ms)/1000)+c.utc_offset_seconds;
+    return true;
+}
 bool decode_packet(const uint8_t *b, size_t size, uint64_t now, Telemetry &s) {
+    if(size==20 && b[0]==1 && b[1]==4){
+        if(b[2]!=1 || b[3]!=0 || b[16] || b[17] || b[18] || b[19])return false;
+        uint64_t ms=0;uint32_t offset_bits=0;
+        for(int i=0;i<8;i++)ms|=uint64_t(b[4+i])<<(8*i);
+        for(int i=0;i<4;i++)offset_bits|=uint32_t(b[12+i])<<(8*i);
+        int32_t offset;std::memcpy(&offset,&offset_bits,4);
+        // Supported dates: 2020 through 2099; actual timezone offsets in seconds.
+        if(ms<1577836800000ULL || ms>=4102444800000ULL || offset < -43200 || offset > 50400)return false;
+        s.clock={ms,now,offset,true};return true;
+    }
     // v1: version, kind, validity bitmask, reserved=0, four little-endian float32s.
     if(size!=20 || b[0]!=1 || b[1]<1 || b[1]>3 || b[3]!=0 || (b[2]&0xf0)) return false;
     float v[4];

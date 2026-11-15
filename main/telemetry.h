@@ -2,7 +2,14 @@
 #include <cstdint>
 #include <cstddef>
 struct Reading { float value=0; uint64_t received_ms=0; bool valid=false; };
+struct PhoneClock {
+    uint64_t unix_ms=0, received_ms=0;
+    int32_t utc_offset_seconds=0;
+    bool valid=false;
+};
+bool clock_local_seconds(const PhoneClock &clock, bool connected, uint64_t now, int64_t &seconds);
 struct Telemetry {
+    PhoneClock clock;
     Reading altitude, speed, course, location_accuracy;
     Reading pressure, relative_altitude, vertical_accuracy;
     Reading camp_distance, camp_bearing, trip_distance;

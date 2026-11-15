@@ -7,8 +7,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstdint>
+#include <cassert>
+#include <cstring>
 static float roll=8,pitch=12;
 static bool valid=true;
+static bool clock_demo=false;
 static bool sensor_inverted=false,screen_inverted=false;
 static uint32_t pixels[640*172];
 static bool pressed=false;
@@ -29,9 +32,9 @@ void board_set_landscape_inverted(bool value){
     if(value!=screen_inverted){screen_inverted=value;lv_obj_invalidate(lv_scr_act());}
 }
 bool attitude_zero(){return true;}
-Telemetry telemetry_snapshot(){return {};}
-bool phone_connected(){return false;}
-bool fresh(const Reading&,uint64_t){return false;}
+Telemetry telemetry_snapshot(){Telemetry t;if(clock_demo)t.clock={1794697200000ULL,0,-28800,true};return t;}
+bool phone_connected(){return clock_demo;}
+
 static void flush(lv_disp_drv_t *d,const lv_area_t *area,lv_color_t *colors){
     for(int y=area->y1;y<=area->y2;y++)for(int x=area->x1;x<=area->x2;x++){
         if(x>=0&&x<640&&y>=0&&y<172){
@@ -43,12 +46,13 @@ static void flush(lv_disp_drv_t *d,const lv_area_t *area,lv_color_t *colors){
     lv_disp_flush_ready(d);
 }
 int main(int argc,char **argv){
-    if(argc<2){fprintf(stderr,"preview output.ppm [roll pitch page valid roll_taps inverted saved_rear]\n");return 1;}
+    if(argc<2){fprintf(stderr,"preview output.ppm [roll pitch page valid roll_taps inverted saved_rear clock_sync disconnect_after_render]\n");return 1;}
     if(argc>2)roll=std::atof(argv[2]);if(argc>3)pitch=std::atof(argv[3]);
     if(argc>5)valid=std::atoi(argv[5]);
     if(argc>7)sensor_inverted=std::atoi(argv[7]);
     preferences={sensor_inverted,argc>8 && std::atoi(argv[8])!=0};
     screen_inverted=preferences.inverted;
+    clock_demo=argc>9 && std::atoi(argv[9]);
     lv_init();static lv_color_t buffer[640*172];static lv_disp_draw_buf_t draw;
     lv_disp_draw_buf_init(&draw,buffer,nullptr,640*172);
     static lv_disp_drv_t display;lv_disp_drv_init(&display);
@@ -58,6 +62,10 @@ int main(int argc,char **argv){
     for(int i=0;i<(argc>4?std::atoi(argv[4]):0);i++)lv_event_send(lv_obj_get_child(lv_scr_act(),0),LV_EVENT_CLICKED,nullptr);
     lv_tick_inc(60);lv_timer_handler();lv_refr_now(nullptr);
     for(int i=0;i<(argc>6?std::atoi(argv[6]):0);i++){pressed=true;step();pressed=false;step();}
+    if(argc>10 && std::atoi(argv[10])){
+        clock_demo=false;step();step();
+        assert(std::strcmp(lv_label_get_text(lv_obj_get_child(lv_obj_get_child(lv_scr_act(),0),0)),"EXPLORE")==0);
+    }
     lv_refr_now(nullptr);
     FILE *file=fopen(argv[1],"wb");if(!file)return 2;
     fprintf(file,"P6\n640 172\n255\n");

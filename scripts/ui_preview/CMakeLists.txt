@@ -9,6 +9,7 @@ add_library(lvgl STATIC ${LVGL_SOURCES})
 target_include_directories(lvgl PUBLIC "${LVGL}")
 target_compile_definitions(lvgl PUBLIC LV_CONF_SKIP LV_MEM_SIZE=131072 LV_COLOR_DEPTH=16 LV_COLOR_16_SWAP=0
     LV_FONT_MONTSERRAT_12=1 LV_FONT_MONTSERRAT_16=1 LV_FONT_MONTSERRAT_20=1 LV_FONT_MONTSERRAT_32=1 LV_FONT_MONTSERRAT_48=1)
-add_executable(preview preview.cpp "${ROOT}/main/ui.cpp" "${ROOT}/main/vehicle.cpp")
+add_executable(preview preview.cpp "${ROOT}/main/ui.cpp" "${ROOT}/main/vehicle.cpp" "${ROOT}/main/telemetry.cpp")
+target_compile_definitions(preview PRIVATE TRAILSTRIP_HOST_TEST)
 target_include_directories(preview PRIVATE stubs "${ROOT}/main")
 target_link_libraries(preview PRIVATE lvgl)

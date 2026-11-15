@@ -1,3 +1,13 @@
+# Fourth screen: phone-synced clock — 2026-11-14
+
+- Added large vector HH:MM:SS digits and local date on CLOCK. Fourth dot/title/swipe navigation is available only while the phone is connected with a sync received within 60 seconds. Disconnect/expiry returns an active Clock screen to Explore. Orientation support applies to the entire screen.
+- Added integer BLE kind 4: UTC milliseconds and current local UTC offset. iOS timestamps immediately before sending, updates every telemetry cycle even without GPS, and resyncs after reconnect. Firmware uses monotonic elapsed time between syncs; clock is cleared on disconnect and reboot.
+- Host parser tests passed for integer precision, timezone extremes/fractional offsets, ticking, midnight rollover, expiry, disconnected/unsynced state and malformed packets. Existing telemetry tests passed.
+- Actual LVGL 640 × 172 rendering visually verified (`docs/previews/clock.png`, illustrative time). Simulated disconnect while on Clock asserted fallback to Explore. Used vector digits to avoid transformed-text layer allocation.
+- V2 build and upload succeeded with flash hash verification; firmware SHA-256 `45b1075ff2a844c2e7767af1fddb1bf2892a4d3591ce72595f0374913fba964c`. Eight-second reboot capture showed IMU/UI ready without panic.
+- Signed iOS build, installation and launch succeeded. Live BLE time sync, phone timezone changes and background sync behavior still require physical session testing.
+- Logs: `logs/boot-clock-2026-11-14.log`, `logs/upload-clock-2026-11-14.log`, and `logs/ios-clock-{build,install,launch}-2026-11-14.log`.
+
 # Jeep iOS app icon — 2026-11-14
 
 - Added an opaque 1024 × 1024 amber-on-dark app icon rendered from the dashboard's existing front Jeep drawing. `scripts/generate_app_icon.py` extracts the production front drawing and rasterizes it with Pillow; no dashboard screenshot scaling is used.
