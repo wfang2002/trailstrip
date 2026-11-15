@@ -1,3 +1,10 @@
+# Jeep iOS app icon — 2026-11-14
+
+- Added an opaque 1024 × 1024 amber-on-dark app icon rendered from the dashboard's existing front Jeep drawing. `scripts/generate_app_icon.py` extracts the production front drawing and rasterizes it with Pillow; no dashboard screenshot scaling is used.
+- Added AppIcon asset catalog to the Xcode resources phase and selected it for both build configurations. Visually inspected the generated artwork and confirmed compiled `CFBundleIcons` references AppIcon.
+- Signed Debug build and installation on the connected iPhone succeeded. Home Screen appearance has not been observed remotely.
+- Logs: `logs/ios-icon-build-2026-11-14.log`, `logs/ios-icon-install-2026-11-14.log`.
+
 # iOS installation completed — 2026-11-14
 
 - After the account holder accepted Apple's updated agreement, automatic provisioning and the signed iPhoneOS Debug build succeeded.
