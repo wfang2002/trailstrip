@@ -11,6 +11,9 @@ final class TrailSession: NSObject, ObservableObject, CLLocationManagerDelegate,
     @Published var elevationText = "--"
     @Published var speedText = "--"
     @Published var pressureText = "--"
+    @Published var weatherStatus = "Start a session for local weather"
+    @Published var cityText = "--"
+    private let weather = WeatherFeed()
     @Published var campStatus = "No camp saved"
     private let location = CLLocationManager()
     private let altimeter = CMAltimeter()
@@ -59,6 +62,7 @@ final class TrailSession: NSObject, ObservableObject, CLLocationManagerDelegate,
     }
     func stop() {
         running = false
+        weather.stop(); weatherStatus = weather.status; cityText = "--"
         timer?.invalidate(); timer = nil
         location.stopUpdatingLocation(); altimeter.stopRelativeAltitudeUpdates()
         central.stopScan()
@@ -130,6 +134,8 @@ final class TrailSession: NSObject, ObservableObject, CLLocationManagerDelegate,
     }
     private func publishReadings() {
         guard running else { return }
+        if let fix = fix { weather.refresh(location: fix) }
+        weatherStatus = weather.status; cityText = weather.city.isEmpty ? "--" : weather.city
         var gps: [Float?] = [nil,nil,nil,nil]
         var baro: [Float?] = [nil,nil,nil,nil]
         var navigation: [Float?] = [nil,nil,Float(trip),nil]
@@ -154,6 +160,7 @@ final class TrailSession: NSObject, ObservableObject, CLLocationManagerDelegate,
         speedText = gps[1].map { String(format: "%.1f km/h", $0*3.6) } ?? "--"
         pressureText = baro[0].map { String(format: "%.1f hPa", $0) } ?? "--"
         pending[1] = packet(1,gps); pending[2] = packet(2,baro); pending[3] = packet(3,navigation); pending[4] = Data()
+        for (kind, bytes) in weather.packets() { pending[kind] = bytes }
         sendNext()
     }
     private func scan() {

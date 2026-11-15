@@ -12,7 +12,7 @@
 #include <initializer_list>
 static lv_obj_t *content,*status,*values[3],*bubble,*vehicles[2],*pointers[2],*title,*dots[4];
 static int page=0;
-static lv_obj_t *clock_segments[6][7];
+static lv_obj_t *clock_segments[6][7],*clock_forecast,*clock_temperature,*clock_sunrise,*clock_sunset;
 static bool roll_rear=false;
 static int64_t feedback_until=0;
 static lv_obj_t *roll_view_label=nullptr;
@@ -129,17 +129,23 @@ static void render_page(){
         const char* titles[]={"ELEVATION / m","SPEED / km/h","PRESSURE / hPa"};
         for(int i=0;i<3;i++){label(content,titles[i],20+i*210,5,&lv_font_montserrat_16,amber());values[i]=label(content,"--",20+i*210,32,&lv_font_montserrat_48,lv_color_white());lv_obj_set_width(values[i],190);lv_label_set_long_mode(values[i],LV_LABEL_LONG_CLIP);}
     }else{
+        clock_temperature=label(content,"--°C",14,0,&lv_font_montserrat_32,lv_color_white());
+        clock_sunrise=label(content,"RISE  --:--",14,54,&lv_font_montserrat_16,amber());
+        clock_sunset=label(content,"SET   --:--",14,81,&lv_font_montserrat_16,amber());
+        rule(content,177,3,1,106,0x555a58);
+        clock_forecast=label(content,"WEATHER UNAVAILABLE",199,0,&lv_font_montserrat_12,amber());
+        lv_obj_set_width(clock_forecast,425);lv_label_set_long_mode(clock_forecast,LV_LABEL_LONG_CLIP);
         // Vector digits stay crisp at full size without a large transformed text layer.
         const int rects[7][4]={{8,0,44,7},{52,8,7,39},{52,53,7,39},{8,93,44,7},{1,53,7,39},{1,8,7,39},{8,46,44,7}};
         for(int d=0;d<6;d++){
-            int x=92+d*68+(d/2)*24;
+            int x=204+d*62+(d/2)*20;
             for(int segment=0;segment<7;segment++){
                 const auto &r=rects[segment];
-                clock_segments[d][segment]=rule(content,x+r[0],8+r[1],r[2],r[3],0xf5f4ed);
+                clock_segments[d][segment]=rule(content,x+r[0]*4/5,28+r[1]*4/5,r[2]*4/5,r[3]*4/5,0xf5f4ed);
                 lv_obj_set_style_radius(clock_segments[d][segment],2,0);
             }
         }
-        for(int x: {232,392}){rule(content,x,38,7,7,0xffb547);rule(content,x,78,7,7,0xffb547);}
+        for(int x: {320,464}){rule(content,x,51,6,6,0xffb547);rule(content,x,83,6,6,0xffb547);}
     }
 }
 static void tick(lv_timer_t*){
@@ -199,7 +205,23 @@ static void tick(lv_timer_t*){
                 }
             }
             strftime(text,sizeof(text),"%a %d %b %Y",&local);
-            char footer[80];snprintf(footer,sizeof(footer),"%s  /  PHONE LOCAL TIME",text);lv_label_set_text(status,footer);
+            const auto t=telemetry_snapshot();const uint64_t now=esp_timer_get_time()/1000;
+            bool city_ok=t.city_valid && now>=t.city_received_ms && now-t.city_received_ms<=60000;
+            char footer[80];snprintf(footer,sizeof(footer),"%s  /  %s",text,city_ok?t.city:"LOCATION UNAVAILABLE");lv_label_set_text(status,footer);
+            const auto &w=t.weather;bool weather_ok=weather_fresh(w,t.clock,phone_connected(),now);
+            char value[48];
+            if(weather_ok && (w.flags&1))snprintf(value,sizeof(value),"%.0f°C",w.temperature/10.f);else snprintf(value,sizeof(value),"--°C");
+            lv_label_set_text(clock_temperature,value);
+            if(weather_ok && (w.flags&4))snprintf(value,sizeof(value),"RISE  %02u:%02u",w.sunrise/60,w.sunrise%60);else snprintf(value,sizeof(value),"RISE  --:--");
+            lv_label_set_text(clock_sunrise,value);
+            if(weather_ok && (w.flags&8))snprintf(value,sizeof(value),"SET   %02u:%02u",w.sunset/60,w.sunset%60);else snprintf(value,sizeof(value),"SET   --:--");
+            lv_label_set_text(clock_sunset,value);
+            char forecast[100];
+            if(weather_ok && (w.flags&2)){
+                char rain[20]="";if(w.precipitation<=100)snprintf(rain,sizeof(rain),"  %u%%",w.precipitation);
+                snprintf(forecast,sizeof(forecast),"TODAY %s  H%.0f° L%.0f°%s",weather_description(w.code),w.high/10.f,w.low/10.f,rain);
+            }else snprintf(forecast,sizeof(forecast),"WEATHER UNAVAILABLE / STALE");
+            lv_label_set_text(clock_forecast,forecast);
         }
     }
 }

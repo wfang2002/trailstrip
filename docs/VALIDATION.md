@@ -1,3 +1,14 @@
+# Clock city, sun times and forecast — 2026-11-14
+
+- Redesigned Clock with temperature/sunrise/sunset left, large clock right, daily condition/high/low/precipitation chance above digits, and date/city footer. Existing connected/time-sync gating and landscape rotation remain.
+- iPhone uses Apple reverse geocoding and Open-Meteo HTTPS forecast API. Forecast refresh is 15 minutes or 5 km movement; requests/retries are throttled to at least 60 seconds. Memory cache expires after 30 minutes, resets on location/timezone changes, and current weather is hidden on a mismatched date. Requests bypass URL caching via an ephemeral session. App links attribution and explains location/internet use.
+- Added 20-byte BLE kinds 5 (integer weather/sun/date) and 6 (bounded city string). Firmware rejects malformed packets atomically and expires both after 60 seconds without updates. Phone enforces source cache expiry before every send. Missing/polar sun events remain unavailable independently.
+- Swift decoder/serialization tests and production C++ parser tests passed, including actual Swift bytes decoded by firmware code, negative temperatures, timezone/date rollover, null sun events, invalid fields/city bounds and expiry. Existing clock and telemetry regression tests passed. A live Open-Meteo response at public Vancouver center coordinates decoded and encoded using the production Swift code successfully.
+- Visually inspected actual 640 × 172 LVGL previews for normal weather, long city/thunderstorm label, and stale weather. Artifact `docs/previews/clock-weather.png` uses illustrative fixture values.
+- V2 build/upload passed with verified hashes; SHA-256 `581cc0585aca0d174eaa044fe4a87fc941597e592e48066ec6b89819eff9274e`. Eight-second boot capture showed IMU/UI ready without panic.
+- Signed iOS build, final installation and launch passed. Full physical location-to-BLE weather delivery and background behavior still require starting a phone session and user observation; host/API tests are not a substitute for that check.
+- Logs: `logs/boot-weather-2026-11-14.log`, `logs/upload-weather-2026-11-14.log`, `logs/ios-weather-{build,install,launch}-2026-11-14.log`.
+
 # Set Zero confirmation — 2026-11-14
 
 - Camp SET ZERO now opens a modal prompt with CANCEL and CONFIRM. Only CONFIRM calls calibration; success/failure feedback remains on Camp. Modal blocks underlying navigation and gestures.

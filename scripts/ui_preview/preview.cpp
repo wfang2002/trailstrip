@@ -42,6 +42,13 @@ Telemetry telemetry_snapshot(){
             t.altitude={elevation,1000,true};t.speed={speed/3.6f,1000,true};t.pressure={pressure,1000,true};
         }
     }
+    if(const char *sample=std::getenv("TRAILSTRIP_PREVIEW_WEATHER")){
+        t.weather={85,120,60,7*60+24,16*60+31,15,61,80,20261114,1000};
+        std::snprintf(t.city,sizeof(t.city),"Vancouver");t.city_valid=true;t.city_received_ms=1000;
+        if(std::strcmp(sample,"stale")==0)t.weather.date=20261113;
+        if(std::strcmp(sample,"polar")==0){t.weather.flags=3;t.weather.temperature=-235;t.weather.high=-180;t.weather.low=-260;t.weather.code=71;t.weather.precipitation=255;}
+        if(std::strcmp(sample,"long")==0){std::snprintf(t.city,sizeof(t.city),"North Vancouver");t.weather.code=95;}
+    }
     return t;
 }
 bool phone_connected(){return clock_demo || std::getenv("TRAILSTRIP_PREVIEW_EXPLORE");}

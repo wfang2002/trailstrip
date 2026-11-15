@@ -19,6 +19,12 @@ struct TrailstripApp: App {
                         LabeledContent("Speed", value: session.speedText)
                         LabeledContent("Pressure", value: session.pressureText)
                     }
+                    Section("Clock weather") {
+                        LabeledContent("City", value: session.cityText)
+                        Text(session.weatherStatus)
+                        Text("Uses your location for city lookup and local weather. Internet access is required to refresh.")
+                        Link("Weather data: Open-Meteo (CC BY 4.0)", destination: URL(string: "https://open-meteo.com/")!)
+                    }
                     Section("Camp") {
                         Button("Save current location as camp") { session.saveCamp() }
                             .disabled(!session.running)

@@ -122,3 +122,20 @@ The preview also accepts `clock_sync` and `disconnect_after_render` (0/1) after 
 Explore readings use 48 px digits (with a 32 px fallback for unusually long values). To render sample readings in the desktop preview, set `TRAILSTRIP_PREVIEW_EXPLORE=1284,8.5,1013.2` (elevation m, speed km/h, pressure hPa) and select page 2.
 
 Camp → **SET ZERO** opens a confirmation prompt. Park level and hold still, then tap **CONFIRM** to replace the saved calibration or **CANCEL** to keep it. Preview the prompt with `TRAILSTRIP_PREVIEW_ZERO=prompt` on page 1; `cancel` and `confirm` exercise the touch flow and calibration-call assertions.
+
+### Clock city and weather
+
+CLOCK now shows temperature (°C), sunrise and sunset on the left; the large clock on the right; today's forecast, high/low and precipitation chance above the digits; and date/city in the footer. City replaces PHONE LOCAL TIME. Start a session in the updated iPhone app with Location permission and internet access. No API key is needed for this personal prototype. Weather is supplied by [Open-Meteo](https://open-meteo.com/) with attribution in the app; city lookup uses Apple.
+
+Forecast refreshes about every 15 minutes and after moving 5 km, with retries no more than once a minute. Cached weather expires after 30 minutes; old dates, missing sun events and unavailable weather display dashes. The clock itself remains available as long as phone time sync is fresh. City names are transliterated/truncated to 16 characters on the gadget. Sunrise/sunset use the same phone timezone as the clock.
+
+Weather tests:
+
+```sh
+xcrun swiftc -module-cache-path /private/tmp/trailstrip-swift-module-cache ios/Trailstrip/WeatherFeed.swift tests/weather_test.swift -o /private/tmp/weather-swift-test
+/private/tmp/weather-swift-test
+clang++ -std=c++17 -DTRAILSTRIP_HOST_TEST -Imain tests/weather_test.cpp main/telemetry.cpp -o /private/tmp/weather-test
+/private/tmp/weather-test /private/tmp/trailstrip-swift-weather.bin
+```
+
+Set `TRAILSTRIP_PREVIEW_WEATHER=normal` (or `long`, `stale`, `polar`) with the clock preview arguments to inspect fixture data. Preview values are illustrative, not live observations.
