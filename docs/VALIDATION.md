@@ -1,3 +1,10 @@
+# Larger Camp readings — 2026-11-15
+
+- Increased roll/pitch values from 32 px to 48 px, keeping signs and one decimal place. Values wider than 170 px fall back to 32 px to avoid the adjacent reading or Set Zero button.
+- Actual LVGL previews visually checked with +1.2° / -0.6° and -123.4° / +89.9°. Preview: `docs/previews/camp-large.png`.
+- V2 build/upload passed with verified flash hashes. Eight-second startup capture showed IMU/UI ready without panic.
+- Logs: `logs/upload-camp-large-2026-11-15.log`, `logs/boot-camp-large-2026-11-15.log`.
+
 # Clock city, sun times and forecast — 2026-11-14
 
 - Redesigned Clock with temperature/sunrise/sunset left, large clock right, daily condition/high/low/precipitation chance above digits, and date/city footer. Existing connected/time-sync gating and landscape rotation remain.

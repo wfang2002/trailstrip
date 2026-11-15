@@ -121,8 +121,8 @@ static void render_page(){
         bubble=lv_obj_create(content);lv_obj_set_size(bubble,14,14);lv_obj_set_style_radius(bubble,LV_RADIUS_CIRCLE,0);
         lv_obj_set_style_bg_color(bubble,amber(),0);lv_obj_set_style_border_width(bubble,0,0);
         label(content,"ROLL",150,5,&lv_font_montserrat_16,amber());label(content,"PITCH",330,5,&lv_font_montserrat_16,amber());
-        values[0]=label(content,"--",150,32,&lv_font_montserrat_32,lv_color_white());
-        values[1]=label(content,"--",330,32,&lv_font_montserrat_32,lv_color_white());
+        values[0]=label(content,"--",150,32,&lv_font_montserrat_48,lv_color_white());
+        values[1]=label(content,"--",330,32,&lv_font_montserrat_48,lv_color_white());
         auto btn=lv_btn_create(content);lv_obj_set_pos(btn,510,26);lv_obj_set_size(btn,110,48);lv_obj_set_style_bg_color(btn,amber(),0);
         auto text=label(btn,"SET ZERO",0,0,&lv_font_montserrat_16,lv_color_black());lv_obj_center(text);lv_obj_add_event_cb(btn,zero,LV_EVENT_CLICKED,nullptr);
     }else if(page==2){
@@ -160,10 +160,9 @@ static void tick(lv_timer_t*){
             float angles[2]={a.roll,a.pitch};
             for(int i=0;i<2;i++){
                 char text[32];snprintf(text,sizeof(text),page==0?"%.0f°":"%+.1f°",angles[i]);
-                if(page==0){
-                    lv_point_t size;lv_txt_get_size(&size,text,&lv_font_montserrat_48,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
-                    lv_obj_set_style_text_font(values[i],size.x>101?&lv_font_montserrat_32:&lv_font_montserrat_48,0);
-                }
+                lv_point_t size;lv_txt_get_size(&size,text,&lv_font_montserrat_48,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+                const int available_width=page==0?101:170;
+                lv_obj_set_style_text_font(values[i],size.x>available_width?&lv_font_montserrat_32:&lv_font_montserrat_48,0);
                 lv_label_set_text(values[i],text);
             }
         }
