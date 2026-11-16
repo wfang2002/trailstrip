@@ -28,7 +28,7 @@
 
 # Five-second city arrival notice — 2026-11-16
 
-- Added a centered overlay across all pages: Entering city of / city name in 48 px text (32 px fallback for unusually wide names). Automatically closes after five monotonic seconds, returning to the underlying page. New changes replace the notice and restart its duration.
+- Added a centered overlay across all pages: Current location / city name in 48 px text (32 px fallback for unusually wide names). Automatically closes after five monotonic seconds, returning to the underlying page. New changes replace the notice and restart its duration.
 - First fresh city establishes a baseline; repeats, temporary invalid data and reconnecting to the same city do not retrigger it. Last city retained in RAM only. Set Zero confirmation has priority and defers the latest fresh notice. Underlying gestures/touches are blocked during the notice, with release required across appearance/expiry.
 - Host city-change tests passed for baseline/repeats, reconnect, pending replacement, invalid-data cancellation and subsequent changes. Actual LVGL tests verified 4.999-second visibility, five-second expiry, no repeat, inverted landscape, deferred display after cancelling Set Zero and the existing confirm flow. Preview visually inspected: `docs/previews/city-popup.png`.
 - Uses current phone lookup cadence and 16-character city transport; no real-time boundary detection or iOS update.

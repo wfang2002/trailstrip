@@ -124,7 +124,7 @@ int main(int argc,char **argv){
         }
         assert(lv_obj_get_child_cnt(lv_layer_top())==children+1);
         auto panel=lv_obj_get_child(lv_obj_get_child(lv_layer_top(),-1),0);
-        assert(std::strcmp(lv_label_get_text(lv_obj_get_child(panel,0)),"Entering city of")==0);
+        assert(std::strcmp(lv_label_get_text(lv_obj_get_child(panel,0)),"Current location")==0);
         assert(std::strcmp(lv_label_get_text(lv_obj_get_child(panel,1)),city_demo)==0);
         preview_time_us+=4999000;step();step();
         assert(lv_obj_get_child_cnt(lv_layer_top())==children+1);

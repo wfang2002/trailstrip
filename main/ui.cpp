@@ -71,7 +71,7 @@ static void city_notice_tick(){
     lv_obj_set_style_bg_color(panel,lv_color_hex(0x080b0d),0);lv_obj_set_style_bg_opa(panel,LV_OPA_COVER,0);
     lv_obj_set_style_border_color(panel,amber(),0);lv_obj_set_style_border_width(panel,2,0);lv_obj_set_style_radius(panel,8,0);
     lv_obj_clear_flag(panel,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);
-    auto heading=label(panel,"Entering city of",0,0,&lv_font_montserrat_20,amber());
+    auto heading=label(panel,"Current location",0,0,&lv_font_montserrat_20,amber());
     lv_obj_align(heading,LV_ALIGN_TOP_MID,0,22);
     lv_point_t size;lv_txt_get_size(&size,name,&lv_font_montserrat_48,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
     auto city=label(panel,name,0,0,size.x>580?&lv_font_montserrat_32:&lv_font_montserrat_48,lv_color_white());
