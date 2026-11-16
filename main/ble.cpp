@@ -1,5 +1,6 @@
 #include "trailstrip.h"
 #include "telemetry.h"
+#include "obd.h"
 #include "ble_recovery.h"
 #include "esp_timer.h"
 #include "nimble/nimble_npl.h"
@@ -20,6 +21,7 @@ static uint64_t now_ms(){return esp_timer_get_time()/1000;}
 static void schedule(uint32_t delay=1000){ble_npl_callout_reset(&maintenance,ble_npl_time_ms_to_ticks32(delay));}
 static int advertise();
 static int access(uint16_t handle, uint16_t, ble_gatt_access_ctxt *ctx, void*) {
+    if(handle!=connection_handle)return BLE_ATT_ERR_UNLIKELY;
     uint8_t bytes[20]; uint16_t length=0;
     if(ctx->op!=BLE_GATT_ACCESS_OP_WRITE_CHR) return BLE_ATT_ERR_UNLIKELY;
     if(OS_MBUF_PKTLEN(ctx->om)!=20) return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
@@ -97,7 +99,7 @@ static void maintain(ble_npl_event*){
 }
 static void reset(int reason){
     ESP_LOGW("ble","Host reset reason=%d",reason);
-    connection_handle=BLE_HS_CONN_HANDLE_NONE;recovery.reset();telemetry_disconnect();
+    connection_handle=BLE_HS_CONN_HANDLE_NONE;recovery.reset();telemetry_disconnect();obd_ble_reset();
 }
 static void synced(){ESP_LOGI("ble","Host synced");schedule(100);}
 static void host_task(void*){nimble_port_run();nimble_port_freertos_deinit();}
@@ -110,5 +112,6 @@ void ble_start(){
     ESP_ERROR_CHECK(ble_gatts_count_cfg(services));ESP_ERROR_CHECK(ble_gatts_add_svcs(services));
     ble_npl_callout_init(&maintenance,nimble_port_get_dflt_eventq(),maintain,nullptr);
     ble_hs_cfg.sync_cb=synced;ble_hs_cfg.reset_cb=reset;
+    obd_ble_start();
     nimble_port_freertos_init(host_task);
 }

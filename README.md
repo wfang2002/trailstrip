@@ -162,3 +162,9 @@ For diagnosing a recurrence, the USB log now records connection handles, disconn
 Camp shows a concentric bubble target, large signed roll/pitch readings, and a top-down Jeep with its nose pointing right (`FRONT >`). Amber wheels identify the low side/corner relative to saved calibration: positive roll means left low (corrected from mounted-device feedback); positive pitch means rear low. Within ±0.5° on both axes it shows NEAR LEVEL. Invalid IMU readings dim the Jeep and show HOLD STILL. These are attitude cues, not measured wheel heights or ramp-height instructions. SET ZERO retains its Cancel/Confirm prompt.
 
 The bubble keeps its established axis directions and stays inside the target at extreme compound angles. Preview: `docs/previews/camp-level-assist.png`. Sign/deadband regression check: compile `tests/camp_level_test.cpp` with `clang++ -std=c++17 -Imain` and run the resulting executable.
+
+### Direct Veepeak OBD connection / Vehicle screen
+
+The ESP32 now connects directly to a Veepeak OBDCheck BLE while retaining the iPhone link. VEHICLE is the fifth page and works independently of the phone; CLOCK is skipped when unavailable. It shows supported coolant temperature, RPM and speed plus adapter-measured voltage. Unsupported/stale readings show dashes. Tire pressures and transmission temperature are not implemented.
+
+See [OBD setup, protocol and test status](docs/OBD_CONNECTION.md). The scanner was unavailable during development, so in-vehicle validation is pending. Preview with illustrative readings: `docs/previews/vehicle-obd.png`.

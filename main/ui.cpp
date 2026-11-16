@@ -1,6 +1,7 @@
 #include "trailstrip.h"
 #include "attitude.h"
 #include "telemetry.h"
+#include "obd.h"
 #include "lvgl.h"
 #include "vehicle.h"
 #include "camp_level.h"
@@ -11,7 +12,7 @@
 #include <cstdio>
 #include <ctime>
 #include <initializer_list>
-static lv_obj_t *content,*status,*values[3],*bubble,*vehicles[2],*pointers[2],*title,*dots[4];
+static lv_obj_t *content,*status,*values[4],*bubble,*vehicles[2],*pointers[2],*title,*dots[5];
 static int page=0;
 static lv_obj_t *camp_jeep=nullptr,*camp_guidance=nullptr;
 static lv_obj_t *clock_segments[6][7],*clock_forecast,*clock_temperature,*clock_sunrise,*clock_sunset;
@@ -30,7 +31,7 @@ static void toggle_roll_view(lv_event_t*){
     vehicle_set_rear(vehicles[0],roll_rear);
     lv_label_set_text(roll_view_label,roll_rear?"REAR / TAP":"FRONT / TAP");
 }
-static const char *names[]={"TRAIL","CAMP","EXPLORE","CLOCK"};
+static const char *names[]={"TRAIL","CAMP","EXPLORE","CLOCK","VEHICLE"};
 static lv_color_t amber(){return lv_color_hex(0xffb547);}
 static lv_obj_t *label(lv_obj_t *parent,const char *text,int x,int y,const lv_font_t *font,lv_color_t color){
     auto o=lv_label_create(parent);lv_label_set_text(o,text);lv_obj_set_pos(o,x,y);
@@ -55,9 +56,13 @@ static bool clock_ready(){
     int64_t seconds;
     return clock_local_seconds(telemetry_snapshot().clock,phone_connected(),esp_timer_get_time()/1000,seconds);
 }
-static int page_count(){return clock_ready()?4:3;}
+static int next_page(int current,int direction){
+    int next=(current+direction+5)%5;
+    if(next==3 && !clock_ready())next=(next+direction+5)%5;
+    return next;
+}
 static void render_page();
-static void select(lv_event_t *e){if(zero_dialog)return;page=(int)(intptr_t)lv_event_get_user_data(e);if(page>=page_count())page=2;render_page();}
+static void select(lv_event_t *e){if(zero_dialog)return;page=(int)(intptr_t)lv_event_get_user_data(e);if(page==3 && !clock_ready())page=2;render_page();}
 static void close_zero_dialog(){
     if(zero_dialog){auto dialog=zero_dialog;zero_dialog=nullptr;lv_obj_del(dialog);}
 }
@@ -91,8 +96,8 @@ static void zero(lv_event_t*){
 static void gesture(lv_event_t*){
     if(zero_dialog)return;
     auto d=lv_indev_get_gesture_dir(lv_indev_get_act());
-    if(d==LV_DIR_LEFT)page=(page+1)%page_count();
-    else if(d==LV_DIR_RIGHT)page=(page+page_count()-1)%page_count();
+    if(d==LV_DIR_LEFT)page=next_page(page,1);
+    else if(d==LV_DIR_RIGHT)page=next_page(page,-1);
     else return;
     render_page();
 }
@@ -101,7 +106,7 @@ static void render_page(){
     lv_obj_clean(content);roll_view_label=nullptr;bubble=nullptr;vehicles[0]=vehicles[1]=nullptr;
     pointers[0]=pointers[1]=nullptr;camp_jeep=nullptr;camp_guidance=nullptr;
     lv_label_set_text(title,names[page]);
-    for(int i=0;i<4;i++)lv_obj_set_style_bg_color(dots[i],i==page?amber():lv_color_hex(0x606360),0);
+    for(int i=0;i<5;i++)lv_obj_set_style_bg_color(dots[i],i==page?amber():lv_color_hex(0x606360),0);
     for(auto &v:values)v=nullptr;
     if(page==0){
         rule(content,319,4,1,108,0x555a58);
@@ -145,6 +150,15 @@ static void render_page(){
     }else if(page==2){
         const char* titles[]={"ELEVATION / m","SPEED / km/h","PRESSURE / hPa"};
         for(int i=0;i<3;i++){label(content,titles[i],20+i*210,5,&lv_font_montserrat_16,amber());values[i]=label(content,"--",20+i*210,32,&lv_font_montserrat_48,lv_color_white());lv_obj_set_width(values[i],190);lv_label_set_long_mode(values[i],LV_LABEL_LONG_CLIP);}
+    }else if(page==4){
+        const char *headings[]={"COOLANT / °C","ENGINE / RPM","SPEED / km/h","OBD VOLTS"};
+        for(int i=0;i<4;i++){
+            const int x=10+i*158;
+            if(i)rule(content,x-6,6,1,100,0x555a58);
+            label(content,headings[i],x,8,&lv_font_montserrat_12,amber());
+            values[i]=label(content,"--",x,38,&lv_font_montserrat_48,lv_color_white());
+            lv_obj_set_width(values[i],148);lv_label_set_long_mode(values[i],LV_LABEL_LONG_CLIP);
+        }
     }else{
         clock_temperature=label(content,"--°C",14,0,&lv_font_montserrat_32,lv_color_white());
         clock_sunrise=label(content,"RISE  --:--",14,54,&lv_font_montserrat_16,amber());
@@ -213,6 +227,18 @@ static void tick(lv_timer_t*){
         }
         lv_label_set_text(status,!phone_connected()?"WAITING FOR IPHONE / BLUETOOTH":fresh(t.altitude,now)?"PHONE LOCATION / LIVE":"PHONE CONNECTED / LOCATION STALE");
         if(fresh(t.camp_distance,now) && fresh(t.camp_bearing,now) && fresh(t.trip_distance,now)){char text[100];snprintf(text,sizeof(text),"CAMP %.2f km / %.0f° TRUE   |   TRIP %.2f km   |   PHONE",t.camp_distance.value/1000,t.camp_bearing.value,t.trip_distance.value/1000);lv_label_set_text(status,text);}
+    }else if(page==4){
+        const auto obd=obd_snapshot();const uint64_t now=esp_timer_get_time()/1000;
+        const Reading readings[]={obd.coolant,obd.rpm,obd.speed,obd.voltage};
+        for(int i=0;i<4;i++){
+            char text[24]="--";
+            if(obd.connected && fresh(readings[i],now))snprintf(text,sizeof(text),i==3?"%.1f":"%.0f",readings[i].value);
+            lv_point_t size;lv_txt_get_size(&size,text,&lv_font_montserrat_48,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+            lv_obj_set_style_text_font(values[i],size.x>148?&lv_font_montserrat_32:&lv_font_montserrat_48,0);
+            lv_label_set_text(values[i],text);
+        }
+        const bool ecu=fresh(obd.coolant,now)||fresh(obd.rpm,now)||fresh(obd.speed,now);
+        lv_label_set_text(status,obd.ready && obd.support_known && !ecu?"VEEPEAK / ECU DATA UNAVAILABLE":obd.status);
     }else{
         int64_t seconds;
         if(clock_local_seconds(telemetry_snapshot().clock,phone_connected(),esp_timer_get_time()/1000,seconds)){
@@ -252,16 +278,16 @@ void ui_start(){
     auto root=lv_scr_act();lv_obj_set_style_bg_color(root,lv_color_hex(0x080b0d),0);lv_obj_clear_flag(root,LV_OBJ_FLAG_SCROLLABLE);
     auto title_button=lv_btn_create(root);lv_obj_remove_style_all(title_button);
     lv_obj_set_pos(title_button,8,0);lv_obj_set_size(title_button,130,29);
-    lv_obj_add_event_cb(title_button,[](lv_event_t*){if(zero_dialog)return;page=(page+1)%page_count();render_page();},LV_EVENT_CLICKED,nullptr);
+    lv_obj_add_event_cb(title_button,[](lv_event_t*){if(zero_dialog)return;page=next_page(page,1);render_page();},LV_EVENT_CLICKED,nullptr);
     title=label(title_button,"TRAIL",0,4,&lv_font_montserrat_20,amber());
     rule(root,140,16,486,1,0x9a9e98);
     content=lv_obj_create(root);lv_obj_remove_style_all(content);lv_obj_set_pos(content,0,30);lv_obj_set_size(content,640,116);lv_obj_clear_flag(content,LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(root,gesture,LV_EVENT_GESTURE,nullptr);
     rule(root,10,149,620,1,0x9a9e98);
     status=label(root,"STARTING",10,155,&lv_font_montserrat_12,lv_color_hex(0xb4b5af));
-    lv_obj_set_width(status,480);lv_label_set_long_mode(status,LV_LABEL_LONG_CLIP);
-    for(int i=0;i<4;i++){
-        auto hit=lv_btn_create(root);lv_obj_remove_style_all(hit);lv_obj_set_pos(hit,497+i*35,146);lv_obj_set_size(hit,35,26);
+    lv_obj_set_width(status,450);lv_label_set_long_mode(status,LV_LABEL_LONG_CLIP);
+    for(int i=0;i<5;i++){
+        auto hit=lv_btn_create(root);lv_obj_remove_style_all(hit);lv_obj_set_pos(hit,462+i*35,146);lv_obj_set_size(hit,35,26);
         dots[i]=rule(hit,12,10,8,8,0x606360);lv_obj_set_style_radius(dots[i],LV_RADIUS_CIRCLE,0);
         lv_obj_add_event_cb(hit,select,LV_EVENT_CLICKED,(void*)(intptr_t)i);
     }

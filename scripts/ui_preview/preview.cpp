@@ -2,6 +2,7 @@
 #include "trailstrip.h"
 #include "attitude.h"
 #include "telemetry.h"
+#include "obd.h"
 #include "landscape.h"
 #include "display_preferences.h"
 #include <cstdio>
@@ -31,6 +32,16 @@ void attitude_start(){}
 Attitude attitude_read(){return {roll,pitch,valid,true,sensor_inverted};}
 void board_set_landscape_inverted(bool value){
     if(value!=screen_inverted){screen_inverted=value;lv_obj_invalidate(lv_scr_act());}
+}
+ObdData obd_snapshot(){
+    ObdData data;
+    if(const char *mode=std::getenv("TRAILSTRIP_PREVIEW_OBD")){
+        data.connected=true;data.ready=true;data.support_known=true;
+        data.coolant={94,1000,true};data.rpm={1800,1000,true};data.speed={8,1000,true};data.voltage={13.8f,1000,true};
+        std::snprintf(data.status,sizeof(data.status),"VEEPEAK / LIVE OBD");
+        if(std::strcmp(mode,"stale")==0){data.coolant.valid=data.rpm.valid=data.speed.valid=data.voltage.valid=false;}
+    }
+    return data;
 }
 bool attitude_zero(){++zero_calls;return valid;}
 Telemetry telemetry_snapshot(){

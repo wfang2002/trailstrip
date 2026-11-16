@@ -1,3 +1,14 @@
+# Direct Veepeak BLE client / Vehicle screen — 2026-11-15
+
+- Enabled NimBLE central+observer roles and two connections while retaining the existing phone peripheral/server role. Added scanner-only GAP/GATT callbacks, generation guards for stale callbacks, bounded discovery/subscription/ELM transactions, reconnect backoff and data clearing. Normal scanner errors do not terminate the phone link; stuck termination can reset the shared host.
+- Scanner discovery targets VEEPEAK names and verifies FFF0/FFF1 notify/FFF2 write plus CCCD. Profile is based on documented first-hand observation and requires verification on the user's adapter. No arbitrary-characteristic guessing.
+- Added serialized, bounded ELM327 initialization and standard supported-PID polling for coolant/RPM/speed, plus adapter voltage. Read-only command set; missing/unsupported/stale readings show dashes. Vehicle is a stable fifth page accessible without phone time; Clock is skipped when unavailable.
+- Production ELM engine tests passed: per-byte notification fragmentation, echo/SEARCHING text, capability bitmaps, unit conversions, unsupported-PID skipping, NO DATA, wrong PID/header/truncated frames, invalid voltage, delayed capability retry, command timeout, overflow, non-ASCII input and reconnect reset. Existing Set Zero confirmation and Clock-disconnect preview checks passed.
+- Actual 640 × 172 LVGL Vehicle layout preview checked with illustrative live and stale/offline inputs. Artifact: `docs/previews/vehicle-obd.png`.
+- V2 build/upload succeeded with verified flash hashes. Firmware SHA-256 `400eda55d7b133d55795249c7f161b75569dcfb5bc323e1eddfed62adec38fb3`. Twenty-five-second boot capture showed UI/IMU ready, phone connection handle 2, and repeated scanner discovery while the phone remained connected; no panic observed.
+- User stated the scanner was unavailable. Actual scanner GATT discovery, Jeep PID support, dual active-link stability and scanner/ignition reconnect behavior are NOT hardware-validated. Instructions and protocol limits: `docs/OBD_CONNECTION.md`.
+- Logs: `logs/boot-obd-2026-11-15.log`, `logs/upload-obd-2026-11-15.log`.
+
 # Camp left/right guidance correction — 2026-11-15
 
 - Reversed only the lateral low-side mapping following mounted-device feedback. Positive roll now selects left-low; negative selects right-low. Matching front/rear corner labels and highlighted wheels follow this correction. Numerical roll, bubble movement, pitch/front-rear mapping and calibration are unchanged.
