@@ -1,3 +1,12 @@
+# Speed-dependent TRAIL display smoothing — 2026-11-16
+
+- Added a fixed-capacity, time-weighted trailing two-second average for TRAIL roll/pitch only. Numbers, Jeep illustrations and scale pointers use the same output. The existing 50 ms UI refresh and underlying gyro filter remain unchanged; CAMP retains responsive raw attitude values.
+- Enables strictly above 22 km/h, disables strictly below 18 km/h, retains mode at/between thresholds. Fresh connected OBD speed (km/h) takes priority over connected phone speed (m/s converted to km/h). Invalid/nonfinite/negative, future-dated, disconnected or older-than-five-second speed is rejected. No usable speed disables smoothing. Half-second crossfade on entry/exit.
+- History is maintained across page changes, but cleared after invalid attitude, orientation changes, gaps over 500 ms, time reversal or successful Set Zero. Roll is unwrapped before averaging to avoid a false jump through zero at ±180 degrees.
+- Host tests passed for exact two-second step response, elapsed-time weighting, roll/pitch agreement, threshold hysteresis, exit crossfade, resets, roll wrapping, OBD precedence, phone conversion and stale/invalid/disconnected speed fallback. Production LVGL preview build, TRAIL render and CAMP Set Zero confirmation flow passed.
+- V2 build/upload succeeded with flash hash verification on `/dev/cu.usbmodem2101`. Ten-second boot capture confirmed UI/IMU initialization and successful gyro bias acquisition without panic. Logs: `logs/upload-speed-smoothing-2026-11-16.log`, `logs/boot-speed-smoothing-2026-11-16.log`.
+- Physical driving response remains for user evaluation.
+
 # Gyro runaway correction — 2026-11-16
 
 - User reported continuously increasing roll/pitch after gyro fusion. The previous learner required raw rates below 0.5 dps, so larger sensor offsets were never learned; once disagreement exceeded 10 degrees, gravity correction was locked out indefinitely. Prior host coverage only tested a 0.2 dps offset and missed this failure.

@@ -5,6 +5,7 @@
 #include "lvgl.h"
 #include "vehicle.h"
 #include "camp_level.h"
+#include "trail_smoothing.h"
 #include "city_notice.h"
 #include "display_preferences.h"
 #include "esp_timer.h"
@@ -18,6 +19,7 @@ static int page=0;
 static lv_obj_t *camp_jeep=nullptr,*camp_guidance=nullptr;
 static lv_obj_t *clock_segments[6][7],*clock_forecast,*clock_temperature,*clock_sunrise,*clock_sunset;
 static bool roll_rear=false;
+static trailstrip::TrailSmoothing trail_smoothing;
 static int64_t feedback_until=0;
 static lv_obj_t *roll_view_label=nullptr;
 static lv_obj_t *zero_dialog=nullptr,*city_popup=nullptr;
@@ -111,7 +113,9 @@ static void zero_choice(lv_event_t *event){
     const bool confirm=(intptr_t)lv_event_get_user_data(event)!=0;
     close_zero_dialog();
     if(confirm){
-        lv_label_set_text(status,attitude_zero()?"ZERO SAVED":"ZERO FAILED / HOLD STILL");
+        const bool saved=attitude_zero();
+        if(saved)trail_smoothing.reset();
+        lv_label_set_text(status,saved?"ZERO SAVED":"ZERO FAILED / HOLD STILL");
         feedback_until=esp_timer_get_time()+2000000;
     }
 }
@@ -231,6 +235,13 @@ static void tick(lv_timer_t*){
     if(page==3 && !ready){page=2;render_page();}
     auto a=attitude_read();
     board_set_landscape_inverted(a.inverted);
+    const auto speed_obd=obd_snapshot();
+    const auto speed_phone=telemetry_snapshot();
+    const uint64_t smoothing_now=esp_timer_get_time()/1000;
+    const float speed=trailstrip::trail_speed(speed_obd.speed,speed_obd.connected,
+                                            speed_phone.speed,phone_connected(),smoothing_now);
+    const auto trail=trail_smoothing.update(a,speed,smoothing_now);
+    if(page==0)a=trail; // CAMP and the underlying IMU remain responsive.
     if(page<2){
         if(a.valid){
             float angles[2]={a.roll,a.pitch};
