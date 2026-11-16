@@ -1,3 +1,19 @@
+# Camp left/right guidance correction — 2026-11-15
+
+- Reversed only the lateral low-side mapping following mounted-device feedback. Positive roll now selects left-low; negative selects right-low. Matching front/rear corner labels and highlighted wheels follow this correction. Numerical roll, bubble movement, pitch/front-rear mapping and calibration are unchanged.
+- Direction/deadband/invalid-state tests passed; added explicit label assertions. Actual LVGL preview at +1.2°/-0.6° shows FRONT LEFT LOW and the corresponding wheel highlight (`docs/previews/camp-level-assist.png`).
+- V2 build/upload passed with verified flash hashes. Eight-second startup capture showed UI/IMU ready and phone connected without panic.
+- Logs: `logs/upload-camp-side-2026-11-15.log`, `logs/boot-camp-side-2026-11-15.log`.
+
+# Camp concept implementation — 2026-11-15
+
+- Reworked Camp into concentric target/crosshairs, two large signed values with labels below, and top-down Jeep guidance. Jeep nose points right and is marked FRONT >. Low wheels are highlighted in amber, with side/corner text; both axes within ±0.5° display NEAR LEVEL. Guidance is relative to saved calibration, not actual wheel-height measurement.
+- Preserved established bubble directions; radial clamping keeps the bubble within the circle at compound/extreme tilt. Invalid samples center/dim the bubble, dim the Jeep and display HOLD STILL without low-wheel highlights.
+- Retained SET ZERO confirmation, using an outlined button below the Jeep. Actual LVGL touch simulations passed cancel, confirm, invalid-reading failure, and inverted-landscape confirmation.
+- Pure direction tests passed for all four low sides, four low corners, ±0.5° deadband and invalid/nonfinite inputs. Actual LVGL previews visually checked at +1.2°/-0.6°, -179.9°/+89.9°, and missing data. Artifact: `docs/previews/camp-level-assist.png` (sample inputs).
+- V2 build/upload passed with flash hash verification. Eight-second boot capture showed IMU/UI ready and phone connected without panic. Physical low-corner response still requires user observation on the mounted gadget.
+- Logs: `logs/upload-camp-redesign-2026-11-15.log`, `logs/boot-camp-redesign-2026-11-15.log`.
+
 # BLE reconnect recovery — 2026-11-15
 
 - User reported reconnect failures requiring ESP32 power cycling. Initial USB capture showed a successful reconnect, so the original failure was not reproduced in that capture. Code inspection found no advertising retry after failure, no stale-link cleanup, and scan-only iOS reconnect with no deadlines for connection/discovery/writes/cancellation.

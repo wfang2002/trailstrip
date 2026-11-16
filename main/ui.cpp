@@ -3,6 +3,7 @@
 #include "telemetry.h"
 #include "lvgl.h"
 #include "vehicle.h"
+#include "camp_level.h"
 #include "display_preferences.h"
 #include "esp_timer.h"
 #include "esp_log.h"
@@ -12,6 +13,7 @@
 #include <initializer_list>
 static lv_obj_t *content,*status,*values[3],*bubble,*vehicles[2],*pointers[2],*title,*dots[4];
 static int page=0;
+static lv_obj_t *camp_jeep=nullptr,*camp_guidance=nullptr;
 static lv_obj_t *clock_segments[6][7],*clock_forecast,*clock_temperature,*clock_sunrise,*clock_sunset;
 static bool roll_rear=false;
 static int64_t feedback_until=0;
@@ -97,7 +99,7 @@ static void gesture(lv_event_t*){
 static void render_page(){
     close_zero_dialog();
     lv_obj_clean(content);roll_view_label=nullptr;bubble=nullptr;vehicles[0]=vehicles[1]=nullptr;
-    pointers[0]=pointers[1]=nullptr;
+    pointers[0]=pointers[1]=nullptr;camp_jeep=nullptr;camp_guidance=nullptr;
     lv_label_set_text(title,names[page]);
     for(int i=0;i<4;i++)lv_obj_set_style_bg_color(dots[i],i==page?amber():lv_color_hex(0x606360),0);
     for(auto &v:values)v=nullptr;
@@ -115,16 +117,31 @@ static void render_page(){
         values[1]=label(content,"--",535,43,&lv_font_montserrat_48,lv_color_white());
         roll_view_label=label(content,roll_rear?"REAR / TAP":"FRONT / TAP",215,100,&lv_font_montserrat_12,amber());
     }else if(page==1){
-        auto ring=lv_obj_create(content);lv_obj_set_size(ring,100,100);lv_obj_set_pos(ring,22,2);
-        lv_obj_set_style_radius(ring,LV_RADIUS_CIRCLE,0);lv_obj_set_style_bg_opa(ring,LV_OPA_TRANSP,0);
-        lv_obj_set_style_border_color(ring,amber(),0);lv_obj_clear_flag(ring,LV_OBJ_FLAG_SCROLLABLE);
-        bubble=lv_obj_create(content);lv_obj_set_size(bubble,14,14);lv_obj_set_style_radius(bubble,LV_RADIUS_CIRCLE,0);
-        lv_obj_set_style_bg_color(bubble,amber(),0);lv_obj_set_style_border_width(bubble,0,0);
-        label(content,"ROLL",150,5,&lv_font_montserrat_16,amber());label(content,"PITCH",330,5,&lv_font_montserrat_16,amber());
-        values[0]=label(content,"--",150,32,&lv_font_montserrat_48,lv_color_white());
-        values[1]=label(content,"--",330,32,&lv_font_montserrat_48,lv_color_white());
-        auto btn=lv_btn_create(content);lv_obj_set_pos(btn,510,26);lv_obj_set_size(btn,110,48);lv_obj_set_style_bg_color(btn,amber(),0);
-        auto text=label(btn,"SET ZERO",0,0,&lv_font_montserrat_16,lv_color_black());lv_obj_center(text);lv_obj_add_event_cb(btn,zero,LV_EVENT_CLICKED,nullptr);
+        // Concentric target and crosshairs; bubble retains the established axis directions.
+        for(int diameter: {100,50}){
+            auto ring=lv_obj_create(content);lv_obj_remove_style_all(ring);
+            lv_obj_set_size(ring,diameter,diameter);lv_obj_set_pos(ring,64-diameter/2,58-diameter/2);
+            lv_obj_set_style_radius(ring,LV_RADIUS_CIRCLE,0);
+            lv_obj_set_style_border_width(ring,diameter==100?2:1,0);
+            lv_obj_set_style_border_color(ring,lv_color_hex(0xb4b5af),0);
+            lv_obj_clear_flag(ring,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);
+        }
+        rule(content,14,58,100,1,0x606360);rule(content,64,8,1,100,0x606360);
+        bubble=rule(content,57,51,14,14,0xffb547);lv_obj_set_style_radius(bubble,LV_RADIUS_CIRCLE,0);
+        rule(content,125,8,1,100,0x555a58);rule(content,302,8,1,100,0x555a58);rule(content,479,8,1,100,0x555a58);
+        values[0]=label(content,"--",136,26,&lv_font_montserrat_48,lv_color_white());
+        values[1]=label(content,"--",313,26,&lv_font_montserrat_48,lv_color_white());
+        label(content,"ROLL",180,84,&lv_font_montserrat_16,amber());
+        label(content,"PITCH",353,84,&lv_font_montserrat_16,amber());
+        auto front=label(content,"FRONT >",486,1,&lv_font_montserrat_12,lv_color_hex(0x929890));
+        lv_obj_set_width(front,148);lv_obj_set_style_text_align(front,LV_TEXT_ALIGN_CENTER,0);
+        camp_jeep=vehicle_top_create(content,495,13,130,53);
+        camp_guidance=label(content,"HOLD STILL",486,68,&lv_font_montserrat_12,amber());
+        lv_obj_set_width(camp_guidance,148);lv_obj_set_style_text_align(camp_guidance,LV_TEXT_ALIGN_CENTER,0);
+        auto btn=lv_btn_create(content);lv_obj_remove_style_all(btn);lv_obj_set_pos(btn,505,87);lv_obj_set_size(btn,110,28);
+        lv_obj_set_style_radius(btn,5,0);lv_obj_set_style_border_width(btn,1,0);lv_obj_set_style_border_color(btn,amber(),0);
+        lv_obj_set_style_bg_color(btn,lv_color_hex(0x303633),LV_STATE_PRESSED);lv_obj_set_style_bg_opa(btn,LV_OPA_COVER,LV_STATE_PRESSED);
+        auto text=label(btn,"SET ZERO",0,0,&lv_font_montserrat_12,amber());lv_obj_center(text);lv_obj_add_event_cb(btn,zero,LV_EVENT_CLICKED,nullptr);
     }else if(page==2){
         const char* titles[]={"ELEVATION / m","SPEED / km/h","PRESSURE / hPa"};
         for(int i=0;i<3;i++){label(content,titles[i],20+i*210,5,&lv_font_montserrat_16,amber());values[i]=label(content,"--",20+i*210,32,&lv_font_montserrat_48,lv_color_white());lv_obj_set_width(values[i],190);lv_label_set_long_mode(values[i],LV_LABEL_LONG_CLIP);}
@@ -161,7 +178,7 @@ static void tick(lv_timer_t*){
             for(int i=0;i<2;i++){
                 char text[32];snprintf(text,sizeof(text),page==0?"%.0f°":"%+.1f°",angles[i]);
                 lv_point_t size;lv_txt_get_size(&size,text,&lv_font_montserrat_48,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
-                const int available_width=page==0?101:170;
+                const int available_width=page==0?101:160;
                 lv_obj_set_style_text_font(values[i],size.x>available_width?&lv_font_montserrat_32:&lv_font_montserrat_48,0);
                 lv_label_set_text(values[i],text);
             }
@@ -169,7 +186,13 @@ static void tick(lv_timer_t*){
         else{lv_label_set_text(values[0],"--");lv_label_set_text(values[1],"--");}
         if(esp_timer_get_time()>feedback_until)lv_label_set_text(status,!a.valid?"IMU UNAVAILABLE / MOTION":a.calibrated?(page==0?"VEHICLE ATTITUDE":"LEVEL ASSIST"):(page==0?"VEHICLE ATTITUDE  /  ZERO IN CAMP":"LEVEL ASSIST  /  SET ZERO ON LEVEL SURFACE"));
         // Screen Y increases downward: positive pitch moves the level bubble upward.
-        if(bubble){lv_obj_set_pos(bubble,65+(int)fmaxf(-36,fminf(36,a.roll*3)),45-(int)fmaxf(-36,fminf(36,a.pitch*3)));lv_obj_set_style_opa(bubble,a.valid?LV_OPA_COVER:LV_OPA_30,0);}
+        if(bubble){
+            float dx=a.valid?a.roll*3:0,dy=a.valid?-a.pitch*3:0;
+            float distance=std::hypot(dx,dy);if(distance>40){dx*=40/distance;dy*=40/distance;}
+            lv_obj_set_pos(bubble,57+(int)dx,51+(int)dy);lv_obj_set_style_opa(bubble,a.valid?LV_OPA_COVER:LV_OPA_30,0);
+            const auto guide=trailstrip::camp_level(a.roll,a.pitch,a.valid);
+            vehicle_top_set_low(camp_jeep,guide.low_corners,guide.valid);lv_label_set_text(camp_guidance,guide.label);
+        }
         if(vehicles[0]){
             for(int i=0;i<2;i++){
                 float angle=i?a.pitch:a.roll;

@@ -86,7 +86,7 @@ int main(int argc,char **argv){
     }
     if(const char *action=std::getenv("TRAILSTRIP_PREVIEW_ZERO")){
         auto tap=[](int x,int y){touch_x=x;touch_y=y;pressed=true;step();pressed=false;step();};
-        tap(565,80);assert(zero_calls==0);
+        tap(560,131);assert(zero_calls==0);
         // Modal blocks the title behind it.
         tap(40,15);assert(zero_calls==0);
         assert(std::strcmp(lv_label_get_text(lv_obj_get_child(lv_obj_get_child(lv_scr_act(),-1),0)),"SET ZERO?")==0);

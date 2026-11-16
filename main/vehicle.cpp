@@ -147,3 +147,43 @@ void vehicle_set_rear(lv_obj_t *object,bool rear_view){
     state->rear=rear_view;
     lv_obj_invalidate(object);
 }
+
+namespace {
+struct TopVehicle {uint8_t low=0;bool valid=false;};
+void draw_top(lv_event_t *event){
+    auto state=static_cast<TopVehicle*>(lv_event_get_user_data(event));
+    if(lv_event_get_code(event)==LV_EVENT_DELETE){delete state;return;}
+    auto object=lv_event_get_target(event);lv_area_t area;lv_obj_get_coords(object,&area);
+    float scale=std::min((lv_area_get_width(&area)-4)/90.f,(lv_area_get_height(&area)-4)/62.f);
+    Painter p{lv_event_get_draw_ctx(event),(area.x1+area.x2)*.5f,(area.y1+area.y2)*.5f,scale,0,1,lv_opa_t(state->valid?255:70)};
+    p.path({{-17,-39},{17,-39},{21,-31},{21,31},{15,37},{-15,37},{-21,31},{-21,-31},{-17,-39}},2);
+    p.box(-15,-34,30,14); // Hood and upright windshield.
+    p.path({{-15,-17},{15,-17},{17,-9},{-17,-9},{-15,-17}});
+    p.box(-15,-5,30,29);p.line({-15,9},{15,9});
+    p.path({{-15,27},{15,27},{12,32},{-12,32},{-15,27}});
+    p.box(-9,36,18,6,2); // Rear spare.
+    p.line({-20,-12},{-29,-14},0xffb547,2);p.line({20,-12},{29,-14},0xffb547,2);
+    for(int i=0;i<4;i++){
+        float x=(i%2)?23:-29,y=i<2?-29:17;
+        bool low=state->valid && (state->low&(1<<i));
+        uint32_t color=low?0xffb547:0x626762;
+        if(low){for(int dx=1;dx<6;dx++)p.line({x+dx,y+1},{x+dx,y+15},color,1);}
+        p.line({x,y},{x+6,y},color,2);p.line({x+6,y},{x+6,y+16},color,2);
+        p.line({x+6,y+16},{x,y+16},color,2);p.line({x,y+16},{x,y},color,2);
+    }
+}
+}
+lv_obj_t *vehicle_top_create(lv_obj_t *parent,int x,int y,int width,int height){
+    auto object=lv_obj_create(parent);lv_obj_remove_style_all(object);
+    lv_obj_set_pos(object,x,y);lv_obj_set_size(object,width,height);
+    lv_obj_clear_flag(object,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);
+    auto state=new TopVehicle;lv_obj_set_user_data(object,state);
+    lv_obj_add_event_cb(object,draw_top,LV_EVENT_DRAW_MAIN,state);
+    lv_obj_add_event_cb(object,draw_top,LV_EVENT_DELETE,state);
+    return object;
+}
+void vehicle_top_set_low(lv_obj_t *object,uint8_t corners,bool valid){
+    auto state=static_cast<TopVehicle*>(lv_obj_get_user_data(object));
+    if(state->low==corners && state->valid==valid)return;
+    state->low=corners;state->valid=valid;lv_obj_invalidate(object);
+}
