@@ -214,13 +214,13 @@ static void render_page(){
         rule(content,177,3,1,106,0x555a58);
         clock_forecast=label(content,"WEATHER UNAVAILABLE",199,0,&lv_font_montserrat_12,amber());
         lv_obj_set_width(clock_forecast,425);lv_label_set_long_mode(clock_forecast,LV_LABEL_LONG_CLIP);
-        // Vector digits stay crisp at full size without a large transformed text layer.
-        const int rects[7][4]={{8,0,44,7},{52,8,7,39},{52,53,7,39},{8,93,44,7},{1,53,7,39},{1,8,7,39},{8,46,44,7}};
+        // Vector digits stay crisp at full size. Strokes are 8 px and overlap at the corners.
+        const int rects[7][4]={{6,0,34,8},{38,6,8,32},{38,42,8,32},{6,72,34,8},{0,42,8,32},{0,6,8,32},{6,36,34,8}};
         for(int d=0;d<6;d++){
             int x=204+d*62+(d/2)*20;
             for(int segment=0;segment<7;segment++){
                 const auto &r=rects[segment];
-                clock_segments[d][segment]=rule(content,x+r[0]*4/5,28+r[1]*4/5,r[2]*4/5,r[3]*4/5,0xf5f4ed);
+                clock_segments[d][segment]=rule(content,x+r[0],28+r[1],r[2],r[3],0xf5f4ed);
                 lv_obj_set_style_radius(clock_segments[d][segment],2,0);
             }
         }
