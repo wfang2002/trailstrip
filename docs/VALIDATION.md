@@ -1,3 +1,21 @@
+# Gyro runaway correction — 2026-11-16
+
+- User reported continuously increasing roll/pitch after gyro fusion. The previous learner required raw rates below 0.5 dps, so larger sensor offsets were never learned; once disagreement exceeded 10 degrees, gravity correction was locked out indefinitely. Prior host coverage only tested a 0.2 dps offset and missed this failure.
+- Gyro integration now waits for two seconds of stable acceleration direction and gyro samples, estimating bias without requiring a near-zero raw rate. Until calibration, readings use smoothed acceleration. Persistent large disagreement for three seconds switches back to acceleration and restarts bias acquisition. Saved user zero offsets are unchanged.
+- Stable windows cannot prove rest under constant yaw or sustained acceleration; startup while moving may defer calibration or bias its estimate. Strong acceleration rejection is now bounded by the three-second recovery path. This trades some sustained-acceleration rejection for recovery from drift.
+- Host regression passed for the previously observed (-8.078, -9.836, -3.695) dps rates simulated as a stationary offset over two minutes, including the observed acceleration magnitude. Also passed unexpected post-calibration bias recovery, moving-start calibration deferral, two-second strong acceleration/braking, five-second moderate acceleration, real/compound rotation, inversion, shocks and gaps. Existing attitude, landscape and Camp guidance checks passed.
+- V2 build/upload passed with verified hashes. A 32-second hardware capture initially showed changing pose while waiting for stable bias, then acquired bias (0.885, -0.355, -0.325) dps at 13.9 seconds. Subsequent samples at 17.1/22.2/27.3 seconds showed roll -2.53/-2.52/-2.55 degrees and pitch -32.99/-32.95/-33.01 degrees: ranges 0.03/0.06 degrees, without continued runaway. Values are raw mounted angles before saved user offsets. No panic observed. Driving behavior remains unverified.
+- Logs: `logs/upload-drift-fix-2026-11-16.log`, `logs/boot-drift-fix-2026-11-16.log`.
+
+# Gyro-assisted pitch / acceleration rejection — 2026-11-16
+
+- Replaced accelerometer-only angle smoothing with a sensor-frame gravity-vector complementary filter. Enabled QMI8658 gyro at ±256 dps / 112.1 Hz; updates use measured UI sample intervals and exact vector rotation. Existing mounting axes, zero offsets and front/rear conventions are preserved.
+- Accelerometer correction is slow (4 seconds near agreement, 20 seconds for larger disagreement), rejected above about 10 degrees disagreement or 0.04 g norm deviation. Stable low-rate periods learn gyro bias. Missing samples invalidate the display after 500 ms; gaps above 250 ms reacquire rather than integrating stale rates. Auto-rotation uses estimated gravity.
+- Host tests passed: five-second ±0.3 g acceleration/braking, ±0.1 g with less than 1.5 degrees error, actual pitch/roll rotation in both mounting orientations, simultaneous acceleration and pitch rotation, coupled tilt, physical 180-degree flip, shock/free fall, invalid gyro, gaps and stationary bias. Existing attitude, landscape and Camp guidance tests passed.
+- V2 build/upload succeeded with flash hash verification on `/dev/cu.usbmodem101`. Ten-second boot capture confirmed gyro-assisted IMU initialization, valid fused sample, UI startup and phone connection without panic. The first raw gyro sample was nonzero; physical motion/bias was not independently measured.
+- Real acceleration/braking and gyro direction on the mounted device still require driving/physical validation. Sustained acceleration, motion during initialization, missed sampling during UI stalls and bias drift remain limitations; no GPS/OBD acceleration compensation is implemented.
+- Logs: `logs/upload-fusion-2026-11-16.log`, `logs/boot-fusion-2026-11-16.log`.
+
 # City popup missed-notification correction — 2026-11-16
 
 - User reported the city changing in the footer without a popup. The exact original failure was not reproduced. Found a lost-notice edge case: a deferred city was acknowledged before display, so a temporary invalid city packet could discard it permanently.

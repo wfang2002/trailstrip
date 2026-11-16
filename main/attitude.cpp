@@ -1,5 +1,6 @@
 #include "attitude.h"
 #include "attitude_math.h"
+#include "attitude_filter.h"
 #include "landscape.h"
 #include "display_preferences.h"
 #include "SensorQMI8658.hpp"
@@ -12,6 +13,7 @@ static SensorQMI8658 imu;
 static bool ready=false, calibrated=false;
 static float r=0,p=0,r0=0,p0=0;
 static int64_t last=0;
+static trailstrip::AttitudeFilter filter;
 static trailstrip::LandscapeOrientation orientation;
 // Old "zero" belongs to flat-board axes; never apply it to upright readings.
 static constexpr const char *calibration_key="zero_mount_v2";
@@ -21,8 +23,11 @@ void attitude_start(){
     if(i2c_master_get_bus_handle(0,&bus)!=ESP_OK)return;
     ready=imu.begin(bus,0x6b);
     if(!ready){ESP_LOGE("imu","QMI8658 unavailable");return;}
-    imu.configAccelerometer(SensorQMI8658::ACC_RANGE_4G,SensorQMI8658::ACC_ODR_125Hz,SensorQMI8658::LPF_MODE_2);
-    imu.enableAccelerometer();
+    ready=imu.configAccelerometer(SensorQMI8658::ACC_RANGE_4G,SensorQMI8658::ACC_ODR_125Hz,SensorQMI8658::LPF_MODE_2)==0;
+    ready=imu.configGyroscope(SensorQMI8658::GYR_RANGE_256DPS,SensorQMI8658::GYR_ODR_112_1Hz,SensorQMI8658::LPF_MODE_2)==0 && ready;
+    ready=imu.enableAccelerometer() && ready;
+    ready=imu.enableGyroscope() && ready;
+    if(!ready){ESP_LOGE("imu","IMU fusion configuration failed");return;}
     nvs_handle_t nvs;
     if(nvs_open("trailstrip",NVS_READONLY,&nvs)==ESP_OK){
         float offsets[2];size_t len=sizeof(offsets);
@@ -39,25 +44,33 @@ void attitude_start(){
             r0=zero.roll;p0=zero.pitch;calibrated=true;
         }nvs_close(nvs);
     }
-    ESP_LOGI("imu","QMI8658 ready; upright driver-facing mount; pitch=-Z, roll unchanged");
+    ESP_LOGI("imu","QMI8658 ready; upright driver-facing mount; gyro-assisted gravity filter; pitch=-Z, roll unchanged");
 }
 Attitude attitude_read(){
-    float x,y,z;
+    float x,y,z,gx,gy,gz;
+    static bool was_calibrated=false;
+    static int64_t next_diagnostic=0;
     const int64_t now=esp_timer_get_time();
-    if(ready && imu.getAccelerometer(x,y,z)){
-        if(orientation.update(x,y,z,now/1000)){
+    if(ready && imu.getAccelerometer(x,y,z) && imu.getGyroscope(gx,gy,gz) &&
+       filter.update({x,y,z},{gx,gy,gz},last?float(now-last)/1000000.f:0.f)){
+        if(filter.calibrated()!=was_calibrated){
+            const auto bias=filter.bias();
+            ESP_LOGI("imu","Gyro bias %s: (%.3f, %.3f, %.3f) dps",
+                     filter.calibrated()?"ready":"reacquiring",bias.x,bias.y,bias.z);
+            was_calibrated=filter.calibrated();
+        }
+        const auto gravity=filter.gravity();
+        if(orientation.update(gravity.x,gravity.y,gravity.z,now/1000)){
             display_preferences_set_inverted(orientation.inverted());
-            last=0; // Do not blend readings from different sensor coordinate frames.
             ESP_LOGI("imu","Landscape orientation: %s",orientation.inverted()?"180 degrees":"normal");
         }
-        const float norm=std::sqrt(x*x+y*y+z*z);
-        if(norm>0.7f && norm<1.3f){
-            const auto tilt=trailstrip::mounted_tilt(x,y,z,orientation.inverted());
-            float nr=tilt.roll;
-            float np=tilt.pitch;
-            if(last==0)ESP_LOGI("imu", "First sample g=(%.3f, %.3f, %.3f), upright roll=%.1f pitch=%.1f", x,y,z,nr,np);
-            float a=last?1-std::exp(-float(now-last)/250000.f):1;
-            r+=a*std::remainder(nr-r,360.f);p+=a*(np-p);last=now;
+        const auto tilt=trailstrip::mounted_tilt(gravity.x,gravity.y,gravity.z,orientation.inverted());
+        if(last==0)ESP_LOGI("imu", "First fused sample g=(%.3f, %.3f, %.3f), gyro=(%.3f, %.3f, %.3f) dps",x,y,z,gx,gy,gz);
+        r=tilt.roll;p=tilt.pitch;last=now;
+        if(now<35000000 && now>=next_diagnostic){
+            next_diagnostic=now+5000000;
+            ESP_LOGI("imu","Tilt roll=%.2f pitch=%.2f gyro=(%.2f,%.2f,%.2f) mode=%s",
+                     r,p,gx,gy,gz,filter.calibrated()?"fused":"waiting for stable bias");
         }
     }else orientation.cancel_candidate();
     return {std::remainder(r-r0,360.f),p-p0,last>0 && now-last<500000,calibrated,orientation.inverted()};
