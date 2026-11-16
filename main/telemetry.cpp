@@ -5,6 +5,7 @@
 #ifndef TRAILSTRIP_HOST_TEST
 #include "freertos/FreeRTOS.h"
 #include "esp_timer.h"
+#include "esp_log.h"
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 static Telemetry current;
 static bool connected=false;
@@ -98,7 +99,15 @@ bool decode_packet(const uint8_t *b, size_t size, uint64_t now, Telemetry &s) {
 Telemetry telemetry_snapshot(){portENTER_CRITICAL(&mux);auto t=current;portEXIT_CRITICAL(&mux);return t;}
 bool telemetry_receive(const uint8_t *b,size_t n){
     const uint64_t now=esp_timer_get_time()/1000;
-    portENTER_CRITICAL(&mux);bool ok=decode_packet(b,n,now,current);portEXIT_CRITICAL(&mux);return ok;
+    char old_city[17],new_city[17];bool old_valid,new_valid;
+    portENTER_CRITICAL(&mux);
+    std::memcpy(old_city,current.city,sizeof(old_city));old_valid=current.city_valid;
+    bool ok=decode_packet(b,n,now,current);
+    std::memcpy(new_city,current.city,sizeof(new_city));new_valid=current.city_valid;
+    portEXIT_CRITICAL(&mux);
+    if(ok && n==20 && b[1]==6 && (old_valid!=new_valid || std::strcmp(old_city,new_city)!=0))
+        ESP_LOGI("city","City received: %s",new_valid?new_city:"unavailable");
+    return ok;
 }
 void telemetry_disconnect(){portENTER_CRITICAL(&mux);current={};connected=false;portEXIT_CRITICAL(&mux);}
 void telemetry_connect(bool value){portENTER_CRITICAL(&mux);connected=value;portEXIT_CRITICAL(&mux);}

@@ -171,6 +171,6 @@ See [OBD setup, protocol and test status](docs/OBD_CONNECTION.md). The scanner w
 
 ### City arrival popup
 
-A newly reported city different from the last known city shows `Entering city of` and a large centered city name for five seconds over any page. The first city after boot establishes a baseline; repeated packets and reconnecting to the same city do not repeat the notice. A new city during an existing notice replaces it and restarts the five-second duration. Set Zero confirmation takes priority, with the latest fresh city notice deferred until it closes. Touches do not pass through the popup.
+A newly reported city different from the last known city shows `Entering city of` and a large centered city name for five seconds on the top overlay layer over any page. The first fresh city after boot also shows the notice. Repeated packets and reconnecting to the same city do not repeat it. A new city during an existing notice replaces it and restarts the five-second duration. Set Zero confirmation takes priority, with the latest fresh city notice deferred until it closes. Touches do not pass through the popup.
 
 This uses the existing phone city lookup cadence (normally 15 minutes or 5 km movement), not live administrative-boundary detection. The existing 16-character BLE city-name limit still applies. Preview: `docs/previews/city-popup.png`. Host checks: `tests/city_notice_test.cpp`; actual LVGL timing checks via `TRAILSTRIP_PREVIEW_CITY=expire` (combine with `TRAILSTRIP_PREVIEW_ZERO=prompt` on Camp to check deferred display).

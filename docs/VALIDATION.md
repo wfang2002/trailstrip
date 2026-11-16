@@ -1,3 +1,13 @@
+# City popup missed-notification correction — 2026-11-16
+
+- User reported the city changing in the footer without a popup. The exact original failure was not reproduced. Found a lost-notice edge case: a deferred city was acknowledged before display, so a temporary invalid city packet could discard it permanently.
+- Tracker now acknowledges only when a popup is requested; fresh city data retries a deferred change after invalidation. First fresh city after boot also shows a notice. Repeated/same-city reconnect packets remain suppressed.
+- Moved the popup to LVGL's top overlay layer, explicitly updated its layout/invalidation, and start the five-second deadline after creation. Added logs for received city changes and popup show/close events. Read the clock after taking the telemetry snapshot to avoid a receipt-time race.
+- Host regression tests passed for deferred invalidation/retry, first city, duplicates, reconnect, latest pending city and returning to the already-shown city. Actual LVGL expiry, inverted orientation and deferred Set Zero tests passed; preview visually checked. Weather parser regression passed.
+- V2 build/upload succeeded with flash hash verification on the gadget's new port `/dev/cu.usbmodem101`. User confirmed: “Yes, the popup appears” on the flashed hardware.
+- Hardware log confirmed city receipt, popup display, and dismissal approximately five seconds later; no panic observed.
+- Logs: `logs/upload-city-fix-2026-11-16.log`, `logs/boot-city-fix-2026-11-16.log`.
+
 # Five-second city arrival notice — 2026-11-16
 
 - Added a centered overlay across all pages: Entering city of / city name in 48 px text (32 px fallback for unusually wide names). Automatically closes after five monotonic seconds, returning to the underlying page. New changes replace the notice and restart its duration.

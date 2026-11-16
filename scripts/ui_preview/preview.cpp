@@ -90,7 +90,7 @@ int main(int argc,char **argv){
     static lv_disp_drv_t display;lv_disp_drv_init(&display);
     display.hor_res=640;display.ver_res=172;display.draw_buf=&draw;display.flush_cb=flush;lv_disp_drv_register(&display);
     static lv_indev_drv_t input;lv_indev_drv_init(&input);input.type=LV_INDEV_TYPE_POINTER;input.read_cb=input_read;lv_indev_drv_register(&input);
-    if(std::getenv("TRAILSTRIP_PREVIEW_CITY"))city_demo="Vancouver";
+
     ui_start();
     for(int i=0;i<(argc>4?std::atoi(argv[4]):0);i++)lv_event_send(lv_obj_get_child(lv_scr_act(),0),LV_EVENT_CLICKED,nullptr);
     lv_tick_inc(60);lv_timer_handler();lv_refr_now(nullptr);
@@ -113,24 +113,24 @@ int main(int argc,char **argv){
         }
     }
     if(const char *mode=std::getenv("TRAILSTRIP_PREVIEW_CITY")){
-        auto children=lv_obj_get_child_cnt(lv_scr_act());
+        auto children=lv_obj_get_child_cnt(lv_layer_top());
         city_demo="North Vancouver";step();step();
         if(const char *zero=std::getenv("TRAILSTRIP_PREVIEW_ZERO")){
             if(std::strcmp(zero,"prompt")==0){
-                assert(lv_obj_get_child_cnt(lv_scr_act())==children);
+                assert(lv_obj_get_child_cnt(lv_layer_top())==children);
                 touch_x=215;touch_y=125;pressed=true;step();pressed=false;step();step();
-                --children;assert(zero_calls==0);step();step();
+                assert(zero_calls==0);step();step();
             }
         }
-        assert(lv_obj_get_child_cnt(lv_scr_act())==children+1);
-        auto panel=lv_obj_get_child(lv_obj_get_child(lv_scr_act(),-1),0);
+        assert(lv_obj_get_child_cnt(lv_layer_top())==children+1);
+        auto panel=lv_obj_get_child(lv_obj_get_child(lv_layer_top(),-1),0);
         assert(std::strcmp(lv_label_get_text(lv_obj_get_child(panel,0)),"Entering city of")==0);
         assert(std::strcmp(lv_label_get_text(lv_obj_get_child(panel,1)),city_demo)==0);
         preview_time_us+=4999000;step();step();
-        assert(lv_obj_get_child_cnt(lv_scr_act())==children+1);
+        assert(lv_obj_get_child_cnt(lv_layer_top())==children+1);
         if(std::strcmp(mode,"expire")==0){
-            preview_time_us+=1000;step();step();assert(lv_obj_get_child_cnt(lv_scr_act())==children);
-            preview_time_us+=5000000;step();step();assert(lv_obj_get_child_cnt(lv_scr_act())==children);
+            preview_time_us+=1000;step();step();assert(lv_obj_get_child_cnt(lv_layer_top())==children);
+            preview_time_us+=5000000;step();step();assert(lv_obj_get_child_cnt(lv_layer_top())==children);
         }
     }
     lv_refr_now(nullptr);

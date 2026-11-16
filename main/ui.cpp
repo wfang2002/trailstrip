@@ -47,19 +47,21 @@ static lv_obj_t *rule(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color){
     lv_obj_clear_flag(o,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);return o;
 }
 static void city_notice_tick(){
+    const auto t=telemetry_snapshot();
     const int64_t now=esp_timer_get_time();
     if(city_popup && now>=city_popup_until){
         for(auto input=lv_indev_get_next(nullptr);input;input=lv_indev_get_next(input))lv_indev_wait_release(input);
         lv_obj_del(city_popup);city_popup=nullptr;
+        ESP_LOGI("city","Popup closed after five seconds");
     }
-    const auto t=telemetry_snapshot();const uint64_t ms=now/1000;
+    const uint64_t ms=now/1000;
     const bool fresh_city=phone_connected() && t.city_valid && ms>=t.city_received_ms && ms-t.city_received_ms<=60000;
     city_notice.observe(t.city,fresh_city);
     // Calibration confirmation takes priority; keep only the latest fresh city.
     if(zero_dialog)return;
     char name[17];if(!city_notice.take(name))return;
     if(city_popup)lv_obj_del(city_popup);
-    city_popup=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(city_popup);
+    city_popup=lv_obj_create(lv_layer_top());lv_obj_remove_style_all(city_popup);
     lv_obj_set_pos(city_popup,0,0);lv_obj_set_size(city_popup,640,172);
     lv_obj_set_style_bg_color(city_popup,lv_color_black(),0);lv_obj_set_style_bg_opa(city_popup,LV_OPA_90,0);
     lv_obj_clear_flag(city_popup,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);
@@ -74,7 +76,10 @@ static void city_notice_tick(){
     lv_point_t size;lv_txt_get_size(&size,name,&lv_font_montserrat_48,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
     auto city=label(panel,name,0,0,size.x>580?&lv_font_montserrat_32:&lv_font_montserrat_48,lv_color_white());
     lv_obj_align(city,LV_ALIGN_CENTER,0,18);
-    city_popup_until=now+5000000;
+    lv_obj_update_layout(city_popup);
+    lv_obj_invalidate(city_popup);
+    city_popup_until=esp_timer_get_time()+5000000;
+    ESP_LOGI("city","Showing city popup for 5 seconds: %s",name);
     // Do not let a touch already held during popup creation act on the page below.
     for(auto input=lv_indev_get_next(nullptr);input;input=lv_indev_get_next(input))lv_indev_wait_release(input);
 }
