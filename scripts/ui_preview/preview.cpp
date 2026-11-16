@@ -3,6 +3,7 @@
 #include "attitude.h"
 #include "telemetry.h"
 #include "obd.h"
+#include "esp_timer.h"
 #include "landscape.h"
 #include "display_preferences.h"
 #include <cstdio>
@@ -13,6 +14,7 @@
 static float roll=8,pitch=12;
 static bool valid=true;
 static bool clock_demo=false;
+static const char *city_demo=nullptr;
 static bool sensor_inverted=false,screen_inverted=false;
 static uint32_t pixels[640*172];
 static bool pressed=false;
@@ -60,9 +62,10 @@ Telemetry telemetry_snapshot(){
         if(std::strcmp(sample,"polar")==0){t.weather.flags=3;t.weather.temperature=-235;t.weather.high=-180;t.weather.low=-260;t.weather.code=71;t.weather.precipitation=255;}
         if(std::strcmp(sample,"long")==0){std::snprintf(t.city,sizeof(t.city),"North Vancouver");t.weather.code=95;}
     }
+    if(city_demo){std::snprintf(t.city,sizeof(t.city),"%s",city_demo);t.city_valid=true;t.city_received_ms=preview_time_us/1000;}
     return t;
 }
-bool phone_connected(){return clock_demo || std::getenv("TRAILSTRIP_PREVIEW_EXPLORE");}
+bool phone_connected(){return city_demo || clock_demo || std::getenv("TRAILSTRIP_PREVIEW_EXPLORE");}
 
 static void flush(lv_disp_drv_t *d,const lv_area_t *area,lv_color_t *colors){
     for(int y=area->y1;y<=area->y2;y++)for(int x=area->x1;x<=area->x2;x++){
@@ -87,6 +90,7 @@ int main(int argc,char **argv){
     static lv_disp_drv_t display;lv_disp_drv_init(&display);
     display.hor_res=640;display.ver_res=172;display.draw_buf=&draw;display.flush_cb=flush;lv_disp_drv_register(&display);
     static lv_indev_drv_t input;lv_indev_drv_init(&input);input.type=LV_INDEV_TYPE_POINTER;input.read_cb=input_read;lv_indev_drv_register(&input);
+    if(std::getenv("TRAILSTRIP_PREVIEW_CITY"))city_demo="Vancouver";
     ui_start();
     for(int i=0;i<(argc>4?std::atoi(argv[4]):0);i++)lv_event_send(lv_obj_get_child(lv_scr_act(),0),LV_EVENT_CLICKED,nullptr);
     lv_tick_inc(60);lv_timer_handler();lv_refr_now(nullptr);
@@ -106,6 +110,27 @@ int main(int argc,char **argv){
             tap(confirm?425:215,125);assert(zero_calls==(confirm?1:0));
             assert(std::strcmp(lv_label_get_text(lv_obj_get_child(lv_obj_get_child(lv_scr_act(),0),0)),"CAMP")==0);
             if(confirm)assert(std::strcmp(lv_label_get_text(lv_obj_get_child(lv_scr_act(),4)),valid?"ZERO SAVED":"ZERO FAILED / HOLD STILL")==0);
+        }
+    }
+    if(const char *mode=std::getenv("TRAILSTRIP_PREVIEW_CITY")){
+        auto children=lv_obj_get_child_cnt(lv_scr_act());
+        city_demo="North Vancouver";step();step();
+        if(const char *zero=std::getenv("TRAILSTRIP_PREVIEW_ZERO")){
+            if(std::strcmp(zero,"prompt")==0){
+                assert(lv_obj_get_child_cnt(lv_scr_act())==children);
+                touch_x=215;touch_y=125;pressed=true;step();pressed=false;step();step();
+                --children;assert(zero_calls==0);step();step();
+            }
+        }
+        assert(lv_obj_get_child_cnt(lv_scr_act())==children+1);
+        auto panel=lv_obj_get_child(lv_obj_get_child(lv_scr_act(),-1),0);
+        assert(std::strcmp(lv_label_get_text(lv_obj_get_child(panel,0)),"Entering city of")==0);
+        assert(std::strcmp(lv_label_get_text(lv_obj_get_child(panel,1)),city_demo)==0);
+        preview_time_us+=4999000;step();step();
+        assert(lv_obj_get_child_cnt(lv_scr_act())==children+1);
+        if(std::strcmp(mode,"expire")==0){
+            preview_time_us+=1000;step();step();assert(lv_obj_get_child_cnt(lv_scr_act())==children);
+            preview_time_us+=5000000;step();step();assert(lv_obj_get_child_cnt(lv_scr_act())==children);
         }
     }
     lv_refr_now(nullptr);

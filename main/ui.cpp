@@ -5,6 +5,7 @@
 #include "lvgl.h"
 #include "vehicle.h"
 #include "camp_level.h"
+#include "city_notice.h"
 #include "display_preferences.h"
 #include "esp_timer.h"
 #include "esp_log.h"
@@ -19,8 +20,11 @@ static lv_obj_t *clock_segments[6][7],*clock_forecast,*clock_temperature,*clock_
 static bool roll_rear=false;
 static int64_t feedback_until=0;
 static lv_obj_t *roll_view_label=nullptr;
-static lv_obj_t *zero_dialog=nullptr;
+static lv_obj_t *zero_dialog=nullptr,*city_popup=nullptr;
+static trailstrip::CityNotice city_notice;
+static int64_t city_popup_until=0;
 static void toggle_roll_view(lv_event_t*){
+    if(city_popup)return;
     auto input=lv_indev_get_act();
     if(input && lv_indev_get_gesture_dir(input)!=LV_DIR_NONE)return;
     roll_rear=!roll_rear;
@@ -42,6 +46,38 @@ static lv_obj_t *rule(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color){
     lv_obj_set_style_bg_color(o,lv_color_hex(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
     lv_obj_clear_flag(o,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);return o;
 }
+static void city_notice_tick(){
+    const int64_t now=esp_timer_get_time();
+    if(city_popup && now>=city_popup_until){
+        for(auto input=lv_indev_get_next(nullptr);input;input=lv_indev_get_next(input))lv_indev_wait_release(input);
+        lv_obj_del(city_popup);city_popup=nullptr;
+    }
+    const auto t=telemetry_snapshot();const uint64_t ms=now/1000;
+    const bool fresh_city=phone_connected() && t.city_valid && ms>=t.city_received_ms && ms-t.city_received_ms<=60000;
+    city_notice.observe(t.city,fresh_city);
+    // Calibration confirmation takes priority; keep only the latest fresh city.
+    if(zero_dialog)return;
+    char name[17];if(!city_notice.take(name))return;
+    if(city_popup)lv_obj_del(city_popup);
+    city_popup=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(city_popup);
+    lv_obj_set_pos(city_popup,0,0);lv_obj_set_size(city_popup,640,172);
+    lv_obj_set_style_bg_color(city_popup,lv_color_black(),0);lv_obj_set_style_bg_opa(city_popup,LV_OPA_90,0);
+    lv_obj_clear_flag(city_popup,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_flag(city_popup,LV_OBJ_FLAG_CLICKABLE);
+    auto panel=lv_obj_create(city_popup);lv_obj_remove_style_all(panel);
+    lv_obj_set_pos(panel,12,12);lv_obj_set_size(panel,616,148);
+    lv_obj_set_style_bg_color(panel,lv_color_hex(0x080b0d),0);lv_obj_set_style_bg_opa(panel,LV_OPA_COVER,0);
+    lv_obj_set_style_border_color(panel,amber(),0);lv_obj_set_style_border_width(panel,2,0);lv_obj_set_style_radius(panel,8,0);
+    lv_obj_clear_flag(panel,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_GESTURE_BUBBLE);
+    auto heading=label(panel,"Entering city of",0,0,&lv_font_montserrat_20,amber());
+    lv_obj_align(heading,LV_ALIGN_TOP_MID,0,22);
+    lv_point_t size;lv_txt_get_size(&size,name,&lv_font_montserrat_48,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+    auto city=label(panel,name,0,0,size.x>580?&lv_font_montserrat_32:&lv_font_montserrat_48,lv_color_white());
+    lv_obj_align(city,LV_ALIGN_CENTER,0,18);
+    city_popup_until=now+5000000;
+    // Do not let a touch already held during popup creation act on the page below.
+    for(auto input=lv_indev_get_next(nullptr);input;input=lv_indev_get_next(input))lv_indev_wait_release(input);
+}
 static lv_obj_t *scale(lv_obj_t *parent,int x){
     rule(parent,x+36,9,1,96,0x8a8d8b);
     for(int i=0;i<5;i++){
@@ -62,7 +98,7 @@ static int next_page(int current,int direction){
     return next;
 }
 static void render_page();
-static void select(lv_event_t *e){if(zero_dialog)return;page=(int)(intptr_t)lv_event_get_user_data(e);if(page==3 && !clock_ready())page=2;render_page();}
+static void select(lv_event_t *e){if(zero_dialog || city_popup)return;page=(int)(intptr_t)lv_event_get_user_data(e);if(page==3 && !clock_ready())page=2;render_page();}
 static void close_zero_dialog(){
     if(zero_dialog){auto dialog=zero_dialog;zero_dialog=nullptr;lv_obj_del(dialog);}
 }
@@ -75,7 +111,7 @@ static void zero_choice(lv_event_t *event){
     }
 }
 static void zero(lv_event_t*){
-    if(zero_dialog)return;
+    if(zero_dialog || city_popup)return;
     zero_dialog=lv_obj_create(lv_scr_act());lv_obj_remove_style_all(zero_dialog);
     lv_obj_set_size(zero_dialog,640,172);lv_obj_set_pos(zero_dialog,0,0);
     lv_obj_set_style_bg_color(zero_dialog,lv_color_hex(0x080b0d),0);
@@ -94,7 +130,7 @@ static void zero(lv_event_t*){
     }
 }
 static void gesture(lv_event_t*){
-    if(zero_dialog)return;
+    if(zero_dialog || city_popup)return;
     auto d=lv_indev_get_gesture_dir(lv_indev_get_act());
     if(d==LV_DIR_LEFT)page=next_page(page,1);
     else if(d==LV_DIR_RIGHT)page=next_page(page,-1);
@@ -180,6 +216,7 @@ static void render_page(){
     }
 }
 static void tick(lv_timer_t*){
+    city_notice_tick();
     const bool ready=clock_ready();
     auto clock_hit=lv_obj_get_parent(dots[3]);
     if(ready)lv_obj_clear_flag(clock_hit,LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(clock_hit,LV_OBJ_FLAG_HIDDEN);
@@ -278,7 +315,7 @@ void ui_start(){
     auto root=lv_scr_act();lv_obj_set_style_bg_color(root,lv_color_hex(0x080b0d),0);lv_obj_clear_flag(root,LV_OBJ_FLAG_SCROLLABLE);
     auto title_button=lv_btn_create(root);lv_obj_remove_style_all(title_button);
     lv_obj_set_pos(title_button,8,0);lv_obj_set_size(title_button,130,29);
-    lv_obj_add_event_cb(title_button,[](lv_event_t*){if(zero_dialog)return;page=next_page(page,1);render_page();},LV_EVENT_CLICKED,nullptr);
+    lv_obj_add_event_cb(title_button,[](lv_event_t*){if(zero_dialog || city_popup)return;page=next_page(page,1);render_page();},LV_EVENT_CLICKED,nullptr);
     title=label(title_button,"TRAIL",0,4,&lv_font_montserrat_20,amber());
     rule(root,140,16,486,1,0x9a9e98);
     content=lv_obj_create(root);lv_obj_remove_style_all(content);lv_obj_set_pos(content,0,30);lv_obj_set_size(content,640,116);lv_obj_clear_flag(content,LV_OBJ_FLAG_SCROLLABLE);
