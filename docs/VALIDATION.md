@@ -1,3 +1,14 @@
+# BLE reconnect recovery — 2026-11-15
+
+- User reported reconnect failures requiring ESP32 power cycling. Initial USB capture showed a successful reconnect, so the original failure was not reproduced in that capture. Code inspection found no advertising retry after failure, no stale-link cleanup, and scan-only iOS reconnect with no deadlines for connection/discovery/writes/cancellation.
+- ESP32 now defers advertising onto the NimBLE host queue, retries errors every second, checks scan-response errors, tracks/reset-clears connection state, and logs GAP reasons. No valid packets for 120 seconds triggers disconnect; a stuck termination (10 seconds) or 10 advertising/termination failures triggers BLE-host reset without rebooting the gadget.
+- iOS retrieves system-connected peripherals before scanning, uses monotonic connect/discovery/write deadlines (15/10/8 seconds), and recreates its central manager after an 8-second cancellation timeout. Old-manager/peripheral callbacks are filtered; failed writes, missing/changed services and lost links enter recovery. Stop/start handles outstanding cancellation.
+- Host policy/deadline tests passed, including healthy traffic, advertising failures, idle connections, stuck termination/cancellation, and 50 simulated lifecycle cycles per side. These are host simulations, not 50 physical phone reconnections.
+- Signed iOS build and installation passed. Automatic launch was denied because the iPhone was locked; the user must unlock/open the app. V2 firmware build/upload passed with verified hashes; SHA-256 `667cd6f2f254c1989598e2426070a3967f2eda4aacb90946e65ceee7f6304898`. Fifteen-second boot log showed BLE host sync, advertising started, and IMU/UI ready without panic.
+- Repeated physical iPhone stop/start, force quit/relaunch, out-of-range and Bluetooth-off/on tests remain for user confirmation. Diagnostic logging supports follow-up if the intermittent failure recurs.
+- Logs: `logs/ble-before-fix-2026-11-15.log`, `logs/boot-ble-recovery-2026-11-15.log`, `logs/upload-ble-recovery-2026-11-15.log`, and `logs/ios-ble-recovery-{build,install}-2026-11-15.log`.
+- References: [Apple connected peripheral retrieval](https://developer.apple.com/documentation/corebluetooth/cbcentralmanager/retrieveconnectedperipherals(withservices:)), [Apple asynchronous cancellation](https://developer.apple.com/documentation/corebluetooth/cbcentralmanager/cancelperipheralconnection(_:)), [NimBLE GAP lifecycle](https://mynewt.apache.org/v1_8_0/network/ble_hs/ble_gap.html). Used the pinned local ESP-IDF/NimBLE headers to verify APIs.
+
 # Larger Camp readings — 2026-11-15
 
 - Increased roll/pitch values from 32 px to 48 px, keeping signs and one decimal place. Values wider than 170 px fall back to 32 px to avoid the adjacent reading or Set Zero button.

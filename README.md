@@ -139,3 +139,20 @@ clang++ -std=c++17 -DTRAILSTRIP_HOST_TEST -Imain tests/weather_test.cpp main/tel
 ```
 
 Set `TRAILSTRIP_PREVIEW_WEATHER=normal` (or `long`, `stale`, `polar`) with the clock preview arguments to inspect fixture data. Preview values are illustrative, not live observations.
+
+### BLE reconnection recovery
+
+The iPhone first checks for a Trailstrip connection already held by iOS, then scans. Connection, discovery, and write stalls trigger cancellation/retry; if cancellation never completes, the app recreates its CoreBluetooth manager. Callbacks from obsolete connections/managers are ignored. Stop/start waits for cancellation or its bounded recovery instead of keeping a stale peripheral indefinitely.
+
+ESP32 advertising runs from a deferred NimBLE host callback, with automatic retries. A link receiving no valid telemetry for 120 seconds is disconnected to free the single connection slot. Failed termination or repeated advertising failures trigger a BLE-host reset without restarting the display or changing calibration/preferences. A background-suspended phone may therefore be disconnected after two minutes and must reconnect when it resumes.
+
+Host recovery checks:
+
+```sh
+clang++ -std=c++17 -Imain tests/ble_recovery_test.cpp -o /private/tmp/ble-recovery-test
+/private/tmp/ble-recovery-test
+xcrun swiftc -module-cache-path /private/tmp/trailstrip-swift-module-cache ios/Trailstrip/BLELinkState.swift tests/ble_link_test.swift -o /private/tmp/ble-link-test
+/private/tmp/ble-link-test
+```
+
+For diagnosing a recurrence, the USB log now records connection handles, disconnect reasons, advertising failures/retries, idle termination and BLE host resets.
