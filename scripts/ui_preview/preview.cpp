@@ -92,6 +92,8 @@ int main(int argc,char **argv){
     static lv_indev_drv_t input;lv_indev_drv_init(&input);input.type=LV_INDEV_TYPE_POINTER;input.read_cb=input_read;lv_indev_drv_register(&input);
 
     ui_start();
+    // A weather fixture reports a city immediately. Let that arrival notice finish before the title clicks select a page.
+    if(std::getenv("TRAILSTRIP_PREVIEW_WEATHER") && !std::getenv("TRAILSTRIP_PREVIEW_CITY")){preview_time_us+=5000000;step();step();}
     for(int i=0;i<(argc>4?std::atoi(argv[4]):0);i++)lv_event_send(lv_obj_get_child(lv_scr_act(),0),LV_EVENT_CLICKED,nullptr);
     lv_tick_inc(60);lv_timer_handler();lv_refr_now(nullptr);
     for(int i=0;i<(argc>6?std::atoi(argv[6]):0);i++){pressed=true;step();pressed=false;step();}

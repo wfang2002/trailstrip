@@ -202,8 +202,11 @@ static void render_page(){
         }
     }else{
         clock_temperature=label(content,"--°C",14,0,&lv_font_montserrat_32,lv_color_white());
-        clock_sunrise=label(content,"RISE  --:--",14,54,&lv_font_montserrat_16,amber());
-        clock_sunset=label(content,"SET   --:--",14,81,&lv_font_montserrat_16,amber());
+        // Captions stay small; the times use the same 32 px white digits as the temperature.
+        label(content,"RISE",14,54,&lv_font_montserrat_16,amber());
+        label(content,"SET",14,92,&lv_font_montserrat_16,amber());
+        clock_sunrise=label(content,"--:--",58,40,&lv_font_montserrat_32,lv_color_white());
+        clock_sunset=label(content,"--:--",58,78,&lv_font_montserrat_32,lv_color_white());
         rule(content,177,3,1,106,0x555a58);
         clock_forecast=label(content,"WEATHER UNAVAILABLE",199,0,&lv_font_montserrat_12,amber());
         lv_obj_set_width(clock_forecast,425);lv_label_set_long_mode(clock_forecast,LV_LABEL_LONG_CLIP);
@@ -302,9 +305,9 @@ static void tick(lv_timer_t*){
             char value[48];
             if(weather_ok && (w.flags&1))snprintf(value,sizeof(value),"%.0f°C",w.temperature/10.f);else snprintf(value,sizeof(value),"--°C");
             lv_label_set_text(clock_temperature,value);
-            if(weather_ok && (w.flags&4))snprintf(value,sizeof(value),"RISE  %02u:%02u",w.sunrise/60,w.sunrise%60);else snprintf(value,sizeof(value),"RISE  --:--");
+            if(weather_ok && (w.flags&4))snprintf(value,sizeof(value),"%02u:%02u",w.sunrise/60,w.sunrise%60);else snprintf(value,sizeof(value),"--:--");
             lv_label_set_text(clock_sunrise,value);
-            if(weather_ok && (w.flags&8))snprintf(value,sizeof(value),"SET   %02u:%02u",w.sunset/60,w.sunset%60);else snprintf(value,sizeof(value),"SET   --:--");
+            if(weather_ok && (w.flags&8))snprintf(value,sizeof(value),"%02u:%02u",w.sunset/60,w.sunset%60);else snprintf(value,sizeof(value),"--:--");
             lv_label_set_text(clock_sunset,value);
             char forecast[100];
             if(weather_ok && (w.flags&2)){

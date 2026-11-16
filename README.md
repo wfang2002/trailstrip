@@ -125,7 +125,7 @@ Camp → **SET ZERO** opens a confirmation prompt. Park level and hold still, th
 
 ### Clock city and weather
 
-CLOCK now shows temperature (°C), sunrise and sunset on the left; the large clock on the right; today's forecast, high/low and precipitation chance above the digits; and date/city in the footer. City replaces PHONE LOCAL TIME. Start a session in the updated iPhone app with Location permission and internet access. No API key is needed for this personal prototype. Weather is supplied by [Open-Meteo](https://open-meteo.com/) with attribution in the app; city lookup uses Apple.
+CLOCK now shows temperature (°C) and large white sunrise and sunset times on the left; the large clock on the right; today's forecast, high/low and precipitation chance above the digits; and date/city in the footer. City replaces PHONE LOCAL TIME. Start a session in the updated iPhone app with Location permission and internet access. No API key is needed for this personal prototype. Weather is supplied by [Open-Meteo](https://open-meteo.com/) with attribution in the app; city lookup uses Apple.
 
 Forecast refreshes about every 15 minutes and after moving 5 km, with retries no more than once a minute. Cached weather expires after 30 minutes; old dates, missing sun events and unavailable weather display dashes. The clock itself remains available as long as phone time sync is fresh. City names are transliterated/truncated to 16 characters on the gadget. Sunrise/sunset use the same phone timezone as the clock.
 
